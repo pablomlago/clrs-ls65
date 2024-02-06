@@ -384,10 +384,10 @@ class PGN(Processor):
     o1 = hk.Linear(self.out_size)
     o2 = hk.Linear(self.out_size)
 
-    msg_1 = m_1(z)
-    msg_2 = m_2(z)
-    msg_e = m_e(edge_fts)
-    msg_g = m_g(graph_fts)
+    msg_1 = m_1(z)                             #[B, N, self.mid_size]
+    msg_2 = m_2(z)                             #[B, N, self.mid_size]
+    msg_e = m_e(edge_fts)                      #[B, N, N, self.mid_size]
+    msg_g = m_g(graph_fts)                     #[B, self.mid_size]
 
     tri_msgs = None
 
@@ -402,16 +402,18 @@ class PGN(Processor):
         tri_msgs = self.activation(tri_msgs)
 
     msgs = (
-        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
-        msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
-
+        jnp.expand_dims(msg_1, axis=1) +        #[B, 1, N, self.mid_size]
+        jnp.expand_dims(msg_2, axis=2) +        #[B, N, 1, self.mid_size]   
+        msg_e +                                 #[B, N, N, self.mid_size]
+        jnp.expand_dims(msg_g, axis=(1, 2)))    #[B, 1, 1, self.mid_size]                      
+                                                #--> Summing the messages --> [B,N,N,self.mid_size]
     if self._msgs_mlp_sizes is not None:
-      msgs = hk.nets.MLP(self._msgs_mlp_sizes)(jax.nn.relu(msgs))
+      msgs = hk.nets.MLP(self._msgs_mlp_sizes)(jax.nn.relu(msgs))   #--> Apply psi/f_m 
 
     if self.mid_act is not None:
       msgs = self.mid_act(msgs)
 
-    if self.reduction == jnp.mean:
+    if self.reduction == jnp.mean:                                  #--> Permutation invariant operator
       msgs = jnp.sum(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
       msgs = msgs / jnp.sum(adj_mat, axis=-1, keepdims=True)
     elif self.reduction == jnp.max:
@@ -426,6 +428,19 @@ class PGN(Processor):
     h_2 = o2(msgs)
 
     ret = h_1 + h_2
+
+    #Self-supervised loss function: 
+    #Randomly index msgs to obtain n messages --> Obtain msg_1, msg_2
+    #n_msg = 2
+    #id = np.random.randint(0, n-n_msg)
+    #msg_1 = msgs[:,id:id+1,id:id+1,:]
+    #msg_2 = msgs[:,id+1:id+2,id+1:id+2,:]
+    #combined_msg = msgs[:,id:id+2,id:id+2,:]
+    #ret_0 = o1(z) + o2(combined_msg)
+    #ret_a = o1( o1(z) + o2(msg_1) ) + o2(msg_2)
+    #MSE_loss = ((ret_0-ret_a)**2).mean()
+
+    ##############
 
     if self.activation is not None:
       ret = self.activation(ret)
