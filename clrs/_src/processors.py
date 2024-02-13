@@ -500,7 +500,165 @@ class PGN(Processor):
       ret = ret * gate + hidden * (1-gate)
 
     return ret, tri_msgs  # pytype: disable=bad-return-type  # numpy-scalars
+  
+class PGN_L1(Processor):
+  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
 
+  def __init__(
+      self,
+      out_size: int,
+      mid_size: Optional[int] = None,
+      mid_act: Optional[_Fn] = None,
+      activation: Optional[_Fn] = jax.nn.relu,
+      reduction: _Fn = jnp.sum,
+      msgs_mlp_sizes: Optional[List[int]] = None,
+      use_ln: bool = False,
+      use_triplets: bool = False,
+      nb_triplet_fts: int = 8,
+      gated: bool = False,
+      name: str = 'mpnn_aggr_l1',
+  ):
+    super().__init__(name=name)
+    if mid_size is None:
+      self.mid_size = out_size
+    else:
+      self.mid_size = mid_size
+    self.out_size = out_size
+    self.mid_act = mid_act
+    # Same as in Asynchronous Algorithmic Alignment with Cocycles
+    self.activation = jax.nn.relu
+    self.reduction = jnp.sum
+    self._msgs_mlp_sizes = msgs_mlp_sizes
+    self.use_ln = use_ln
+    self.use_triplets = use_triplets
+    self.nb_triplet_fts = nb_triplet_fts
+    self.gated = gated
+
+  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
+      self,
+      node_fts: _Array,
+      edge_fts: _Array,
+      graph_fts: _Array,
+      adj_mat: _Array,
+      hidden: _Array,
+      **unused_kwargs,
+  ) -> _Array:
+    """MPNN inference step."""
+
+    b, n, _ = node_fts.shape
+    assert edge_fts.shape[:-1] == (b, n, n)
+    assert graph_fts.shape[:-1] == (b,)
+    assert adj_mat.shape == (b, n, n)
+
+    z = jnp.concatenate([node_fts, hidden], axis=-1)
+    m_1 = hk.Linear(self.mid_size)
+    m_2 = hk.Linear(self.mid_size)
+    m_e = hk.Linear(self.mid_size)
+    m_g = hk.Linear(self.mid_size)
+
+    o1 = hk.Linear(self.out_size)
+    o2 = hk.Linear(self.out_size)
+
+    msg_1 = m_1(z)
+    msg_2 = m_2(z)
+    msg_e = m_e(edge_fts)
+    msg_g = m_g(graph_fts)
+
+    # The message generator function is linear (psi)
+    msgs = (
+        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
+        msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
+    
+    # The reduction is a sum
+    msgs = jnp.sum(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
+
+    # The node update is linear
+    h_1 = o1(hidden)
+    h_2 = o2(msgs)
+
+    ret = h_1 + h_2
+
+    # ReLU activation
+    if self.activation is not None:
+      ret = self.activation(ret)
+
+    return ret, None  # pytype: disable=bad-return-type  # numpy-scalars
+
+class PGN_L2(Processor):
+  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
+
+  def __init__(
+      self,
+      out_size: int,
+      mid_size: Optional[int] = None,
+      mid_act: Optional[_Fn] = None,
+      activation: Optional[_Fn] = jax.nn.relu,
+      reduction: _Fn = jnp.sum,
+      msgs_mlp_sizes: Optional[List[int]] = None,
+      use_ln: bool = False,
+      use_triplets: bool = False,
+      nb_triplet_fts: int = 8,
+      gated: bool = False,
+      name: str = 'mpnn_aggr_l1',
+  ):
+    super().__init__(name=name)
+    if mid_size is None:
+      self.mid_size = out_size
+    else:
+      self.mid_size = mid_size
+    self.out_size = out_size
+    self.mid_act = mid_act
+    # Same as in Asynchronous Algorithmic Alignment with Cocycles
+    self.activation = jax.nn.relu
+    self.reduction = jnp.sum
+    self._msgs_mlp_sizes = msgs_mlp_sizes
+    self.use_ln = use_ln
+    self.use_triplets = use_triplets
+    self.nb_triplet_fts = nb_triplet_fts
+    self.gated = gated
+
+  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
+      self,
+      node_fts: _Array,
+      edge_fts: _Array,
+      graph_fts: _Array,
+      adj_mat: _Array,
+      hidden: _Array,
+      **unused_kwargs,
+  ) -> _Array:
+    """MPNN inference step."""
+
+    b, n, _ = node_fts.shape
+    assert edge_fts.shape[:-1] == (b, n, n)
+    assert graph_fts.shape[:-1] == (b,)
+    assert adj_mat.shape == (b, n, n)
+
+    z = jnp.concatenate([node_fts, hidden], axis=-1)
+    m_1 = hk.Linear(self.mid_size)
+    m_2 = hk.Linear(self.mid_size)
+    m_e = hk.Linear(self.mid_size)
+    m_g = hk.Linear(self.mid_size)
+
+    msg_1 = m_1(z)
+    msg_2 = m_2(z)
+    msg_e = m_e(edge_fts)
+    msg_g = m_g(graph_fts)
+
+    # The message generator function is linear (psi)
+    msgs = (
+        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
+        msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
+    
+    # The reduction is a max
+    maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
+                         msgs,
+                         -BIG_NUMBER)
+    msgs = jnp.max(maxarg, axis=1)
+
+    # The node update is linear
+    ret = jnp.maximum(hidden, msgs)
+
+    return ret, None  # pytype: disable=bad-return-type  # numpy-scalars
 
 class DeepSets(PGN):
   """Deep Sets (Zaheer et al., NeurIPS 2017)."""
@@ -513,6 +671,22 @@ class DeepSets(PGN):
 
 
 class MPNN(PGN):
+  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
+
+  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
+               adj_mat: _Array, hidden: _Array, **unused_kwargs) -> _Array:
+    adj_mat = jnp.ones_like(adj_mat)
+    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden)
+  
+class MPNN_L1(PGN_L1):
+  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
+
+  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
+               adj_mat: _Array, hidden: _Array, **unused_kwargs) -> _Array:
+    adj_mat = jnp.ones_like(adj_mat)
+    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden)
+  
+class MPNN_L2(PGN_L2):
   """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
 
   def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
@@ -893,6 +1067,24 @@ def get_processor_factory(kind: str,
           use_triplets=True,
           nb_triplet_fts=nb_triplet_fts,
           gated=True,
+      )
+    elif kind == 'mpnn_l1':
+      processor = MPNN_L1(
+          out_size=out_size,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+      )
+    elif kind == 'mpnn_l2':
+      processor = MPNN_L2(
+          out_size=out_size,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
       )
     else:
       raise ValueError('Unexpected processor kind ' + kind)
