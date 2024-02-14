@@ -479,7 +479,7 @@ def main(unused_argv):
                    cur_loss, current_train_items[algo_idx])
       #print(f'current loss is {cur_loss}')
       ls_loss.append(cur_loss)
-      if step % (FLAGS.train_steps/5)==0:
+      if step % (FLAGS.train_steps/5)==0: #change 5 to e.g., 100 when running for 10,000 iter
         train_model.save_loss_fig(ls_loss, step)
 
     # Periodically evaluate model
