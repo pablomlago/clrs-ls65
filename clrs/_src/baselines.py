@@ -36,6 +36,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
+import matplotlib.pyplot as plt 
 
 
 _Array = chex.Array
@@ -393,7 +394,7 @@ class BaselineModel(model.Model):
             algorithm_index,
             return_hints,
             return_all_outputs))
-
+  
   def _loss(self, params, rng_key, feedback, algorithm_index):
     """Calculates model loss f(feedback; params)."""
     output_preds, hint_preds, mse_loss = self.net_fn.apply(
@@ -428,8 +429,9 @@ class BaselineModel(model.Model):
     # TODO: Remove once validated, as it impacts performance
     regularisation_loss = self.regularisation_weight * mse_loss
     jax.debug.print("[DEBUG] Regularised loss {reg_loss}, Regularisation weight {reg_weight}, MSE loss {mse_loss}", reg_loss=regularisation_loss, reg_weight=self.regularisation_weight, mse_loss=mse_loss)
-
+    
     return total_loss + regularisation_loss
+  
 
   def _update_params(self, params, grads, opt_state, algorithm_index):
     updates, opt_state = filter_null_grads(
@@ -493,6 +495,15 @@ class BaselineModel(model.Model):
     path = os.path.join(self.checkpoint_path, file_name)
     with open(path, 'wb') as f:
       pickle.dump(to_save, f)
+
+  def save_loss_fig(self, ls, iter):
+    path = "/Users/ariellerosinski/My Drive/Cambridge/L65 Geometric DL/Project/Trained Models" #change path e.g., /tmp/CLRS30
+    plt.plot(ls)
+    plt.xlabel('Iteration')
+    plt.ylabel('Loss')
+    fig_path="/".join([path, f"ls_iter_{iter}"])
+    plt.savefig(fig_path)
+
 
 
 class BaselineModelChunked(BaselineModel):

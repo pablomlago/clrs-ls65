@@ -409,7 +409,7 @@ def main(unused_argv):
       hint_teacher_forcing=FLAGS.hint_teacher_forcing,
       hint_repred_mode=FLAGS.hint_repred_mode,
       nb_msg_passing_steps=FLAGS.nb_msg_passing_steps,
-      regularisation_weight=FLAGS.regularisation_weight,
+      #regularisation_weight=FLAGS.regularisation_weight,
       )
 
   eval_model = clrs.models.BaselineModel(
@@ -426,6 +426,7 @@ def main(unused_argv):
   else:
     train_model = eval_model
 
+  ls_loss = []
   # Training loop.
   best_score = -1.0
   current_train_items = [0] * len(FLAGS.algorithms)
@@ -476,6 +477,10 @@ def main(unused_argv):
       logging.info('Algo %s step %i current loss %f, current_train_items %i.',
                    FLAGS.algorithms[algo_idx], step,
                    cur_loss, current_train_items[algo_idx])
+      #print(f'current loss is {cur_loss}')
+      ls_loss.append(cur_loss)
+      if step % (FLAGS.train_steps/5)==0:
+        train_model.save_loss_fig(ls_loss, step)
 
     # Periodically evaluate model
     if step >= next_eval:
