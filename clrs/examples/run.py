@@ -123,6 +123,7 @@ flags.DEFINE_float('regularisation_weight', 0.0,
 
 FLAGS = flags.FLAGS
 
+#test plot loss
 
 PRED_AS_INPUT_ALGOS = [
     'binary_search',
