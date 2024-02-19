@@ -15,7 +15,7 @@ experiments_folder = "./experiments"
 # Checkpoints folder
 checkpoints_folder = "./checkpoints"
 # Template file that needs to be generated for each experiment
-slurm_template_file = f"{experiments_folder}/slurm_l65_gpu_template_ar2217"
+slurm_template_file = f"{experiments_folder}/slurm_l65_gpu_template"
 # Output file
 slurm_output_file_name = "slurm_l65_gpu_template_experiment"
 # File containing the configurations for the different experiments

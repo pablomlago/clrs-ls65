@@ -1,0 +1,43 @@
+Loading rhel8/default-amp
+  Loading requirement: dot rhel8/slurm singularity/current rhel8/global
+    cuda/11.4 libpciaccess/0.16/gcc-9.4.0-6fonbj6
+    libiconv/1.16/gcc-9.4.0-ahebbov libxml2/2.9.12/gcc-9.4.0-gnknt5e
+    ncurses/6.2/gcc-9.4.0-aiirok7 hwloc/2.5.0/gcc-9.4.0-7sqomga
+    libevent/2.1.12/gcc-9.4.0-hgny7cm numactl/2.0.14/gcc-9.4.0-52dwc6n
+    cuda/11.4.0/gcc-9.4.0-3hnxhjt gdrcopy/2.2/gcc-9.4.0-e4igtfp
+    knem/1.1.4/gcc-9.4.0-bpbxgva libnl/3.3.0/gcc-9.4.0-whwhrwb
+    rdma-core/34.0/gcc-9.4.0-5eo5n2u ucx/1.11.1/gcc-9.4.0-lktqyl4
+    openmpi/4.1.1/gcc-9.4.0-epagguv
+Could not find conda environment: clrs_env
+You can list all discoverable environments with `conda info --envs`.
+
+Changed directory to /rds/user/ar2217/hpc-work/L65/clrs-ls65.
+
+JobID: 0
+======
+Time: Mon Feb 19 13:25:06 GMT 2024
+Running on master node: gpu-q-36
+Current directory: /rds/user/ar2217/hpc-work/L65/clrs-ls65
+
+Nodes allocated:
+================
+gpu-q-36
+
+numtasks=1, numnodes=1, mpi_tasks_per_node=1 (OMP_NUM_THREADS=1)
+
+Executing command:
+==================
+python -m clrs.examples.run --checkpoint_path ./checkpoints/0 --processor_type mpnn_l2 --regularisation_weight 0.0 --checkpoint_path /tmp/CLRS30/0 --dataset_path /tmp/CLRS30/0 > logs/out.0
+
+Traceback (most recent call last):
+  File "/rds/project/rds-xyBFuSj0hm0/MLMI2.M2022/miniconda3/lib/python3.9/runpy.py", line 188, in _run_module_as_main
+    mod_name, mod_spec, code = _get_module_details(mod_name, _Error)
+  File "/rds/project/rds-xyBFuSj0hm0/MLMI2.M2022/miniconda3/lib/python3.9/runpy.py", line 111, in _get_module_details
+    __import__(pkg_name)
+  File "/rds/user/ar2217/hpc-work/L65/clrs-ls65/clrs/__init__.py", line 18, in <module>
+    from clrs import models
+  File "/rds/user/ar2217/hpc-work/L65/clrs-ls65/clrs/models.py", line 18, in <module>
+    from clrs._src.baselines import BaselineModel
+  File "/rds/user/ar2217/hpc-work/L65/clrs-ls65/clrs/_src/baselines.py", line 23, in <module>
+    import chex
+ModuleNotFoundError: No module named 'chex'
