@@ -29,6 +29,7 @@ import numpy as np
 import requests
 import tensorflow as tf
 
+import json
 
 flags.DEFINE_list('algorithms', ['bfs'], 'Which algorithms to run.')
 flags.DEFINE_list('train_lengths', ['4', '7', '11', '13', '16'],
@@ -123,6 +124,18 @@ flags.DEFINE_float('regularisation_weight', 0.0,
 
 FLAGS = flags.FLAGS
 
+
+reg_loss = []
+training_loss = []
+
+save_path = FLAGS.checkpoint_path #"/Users/ariellerosinski/My Drive/Cambridge/L65 Geometric DL/Project/Code" #'/tmp/CLRS30/
+reg_loss_path="/".join([save_path, "reg_loss"])
+with open("reg_loss_path", "w") as fp:
+  json.dump(reg_loss, fp)
+
+training_loss_path="/".join([save_path, "training_loss"])
+with open("training_loss_path", "w") as fp:
+  json.dump(reg_loss, fp)
 
 PRED_AS_INPUT_ALGOS = [
     'binary_search',

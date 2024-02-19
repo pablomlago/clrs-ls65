@@ -427,6 +427,9 @@ class BaselineModel(model.Model):
 
     # TODO: Remove once validated, as it impacts performance
     regularisation_loss = self.regularisation_weight * mse_loss
+    # with open("test", "r") as fp:
+    #   b = json.load(fp)
+
     jax.debug.print("[DEBUG] Regularised loss {reg_loss}, Regularisation weight {reg_weight}, MSE loss {mse_loss}", reg_loss=regularisation_loss, reg_weight=self.regularisation_weight, mse_loss=mse_loss)
 
     return total_loss + regularisation_loss
