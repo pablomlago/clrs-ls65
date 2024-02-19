@@ -1,6 +1,8 @@
 {
     "0": {
-        "processor_type": "triplet_gmpnn",
-        "regularisation_weight": 0.0
+        "processor_type": "mpnn_l2",
+        "regularisation_weight": 0.0,
+        "checkpoint_path": "/tmp/CLRS30/0",
+        "dataset_path": "/tmp/CLRS30/0"
     }
 }
