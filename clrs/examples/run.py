@@ -109,7 +109,9 @@ flags.DEFINE_enum('processor_type', 'triplet_gmpnn',
                    'triplet_mpnn', 'triplet_pgn', 'triplet_pgn_mask',
                    'gat', 'gatv2', 'gat_full', 'gatv2_full',
                    'gpgn', 'gpgn_mask', 'gmpnn',
-                   'triplet_gpgn', 'triplet_gpgn_mask', 'triplet_gmpnn', 'mpnn_l1', 'mpnn_l2'],
+                   'triplet_gpgn', 'triplet_gpgn_mask', 'triplet_gmpnn', 
+                   'mpnn_l1', 'mpnn_l1_max', 'mpnn_l1_residual', 'mpnn_l1_regularised', 
+                   'mpnn_l1_regularised_max', 'mpnn_l2'],
                   'Processor type to use as the network P.')
 
 flags.DEFINE_string('checkpoint_path', '/tmp/CLRS30',
@@ -118,6 +120,8 @@ flags.DEFINE_string('dataset_path', '/tmp/CLRS30',
                     'Path in which dataset is stored.')
 flags.DEFINE_boolean('freeze_processor', False,
                      'Whether to freeze the processor of the model.')
+flags.DEFINE_float('regularisation_weight', 0.0,
+                   'Weight given to regularisation loss')
 
 FLAGS = flags.FLAGS
 
@@ -406,6 +410,7 @@ def main(unused_argv):
       hint_teacher_forcing=FLAGS.hint_teacher_forcing,
       hint_repred_mode=FLAGS.hint_repred_mode,
       nb_msg_passing_steps=FLAGS.nb_msg_passing_steps,
+      regularisation_weight=FLAGS.regularisation_weight,
       )
 
   eval_model = clrs.models.BaselineModel(

@@ -155,6 +155,7 @@ class BaselineModel(model.Model):
       hint_repred_mode: str = 'soft',
       name: str = 'base_model',
       nb_msg_passing_steps: int = 1,
+      regularisation_weight: float = 0.0,
   ):
     """Constructor for BaselineModel.
 
@@ -223,6 +224,7 @@ class BaselineModel(model.Model):
       self.opt = optax.adam(learning_rate)
 
     self.nb_msg_passing_steps = nb_msg_passing_steps
+    self.regularisation_weight = regularisation_weight
 
     self.nb_dims = []
     if isinstance(dummy_trajectory, _Feedback):
@@ -324,7 +326,7 @@ class BaselineModel(model.Model):
   def _predict(self, params, rng_key: hk.PRNGSequence, features: _Features,
                algorithm_index: int, return_hints: bool,
                return_all_outputs: bool):
-    outs, hint_preds = self.net_fn.apply(
+    outs, hint_preds, _ = self.net_fn.apply(
         params, rng_key, [features],
         repred=True, algorithm_index=algorithm_index,
         return_hints=return_hints,
@@ -394,7 +396,7 @@ class BaselineModel(model.Model):
 
   def _loss(self, params, rng_key, feedback, algorithm_index):
     """Calculates model loss f(feedback; params)."""
-    output_preds, hint_preds = self.net_fn.apply(
+    output_preds, hint_preds, mse_loss = self.net_fn.apply(
         params, rng_key, [feedback.features],
         repred=False,
         algorithm_index=algorithm_index,
@@ -423,7 +425,11 @@ class BaselineModel(model.Model):
             nb_nodes=nb_nodes,
         )
 
-    return total_loss
+    # TODO: Remove once validated, as it impacts performance
+    regularisation_loss = self.regularisation_weight * mse_loss
+    jax.debug.print("[DEBUG] Regularised loss {reg_loss}, Regularisation weight {reg_weight}, MSE loss {mse_loss}", reg_loss=regularisation_loss, reg_weight=self.regularisation_weight, mse_loss=mse_loss)
+
+    return total_loss + regularisation_loss
 
   def _update_params(self, params, grads, opt_state, algorithm_index):
     updates, opt_state = filter_null_grads(

@@ -17,3 +17,10 @@ venv/
 # Editors
 .idea
 .vscode
+
+# SLURM jobs files
+logs/
+checkpoints/
+slurm.*
+slurm_l65_gpu_template_experiment_*
+machine.file.*
