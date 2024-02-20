@@ -1,52 +1,9 @@
 {
     "0": {
-        "processor_type": "mpnn_l1",
+        "processor_type": "mpnn_l1_max",
         "regularisation_weight": 0.0,
         "checkpoint_path": "/tmp/CLRS30/0",
         "dataset_path": "/tmp/CLRS30/0"
-    },
-
-    "1": {
-        "processor_type": "mpnn_l2",
-        "regularisation_weight": 0.0,
-        "checkpoint_path": "/tmp/CLRS30/1",
-        "dataset_path": "/tmp/CLRS30/1"
-    },
-
-    "2": {
-        "processor_type": "mpnn_l1_regularised",
-        "regularisation_weight": 1e-2,
-        "checkpoint_path": "/tmp/CLRS30/2",
-        "dataset_path": "/tmp/CLRS30/2"
-    },
-
-    "3": {
-        "processor_type": "mpnn_l1_regularised",
-        "regularisation_weight": 1e-3,
-        "checkpoint_path": "/tmp/CLRS30/3",
-        "dataset_path": "/tmp/CLRS30/3"
-    },
-
-
-    "4": {
-        "processor_type": "mpnn_l1_regularised",
-        "regularisation_weight": 1e-4,
-        "checkpoint_path": "/tmp/CLRS30/4",
-        "dataset_path": "/tmp/CLRS30/4"
-    },
-
-
-    "5": {
-        "processor_type": "mpnn_l1_regularised",
-        "regularisation_weight": 1e-5,
-        "checkpoint_path": "/tmp/CLRS30/5",
-        "dataset_path": "/tmp/CLRS30/5"
-    },
-
-    "6": {
-        "processor_type": "mpnn_l1_regularised",
-        "regularisation_weight": 1e-6,
-        "checkpoint_path": "/tmp/CLRS30/6",
-        "dataset_path": "/tmp/CLRS30/6"
     }
+
 }

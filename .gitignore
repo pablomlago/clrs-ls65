@@ -24,3 +24,4 @@ checkpoints/
 slurm.*
 slurm_l65_gpu_template_experiment_*
 machine.file.*
+runs_*.out

@@ -5,7 +5,7 @@ from jinja2 import Template
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = [0,1,2,3,4,5,6]
+experiments_to_run = [0]
 ###################################################
 # No need to change anything below here
 ###################################################

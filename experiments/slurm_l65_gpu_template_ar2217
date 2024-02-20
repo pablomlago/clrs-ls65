@@ -58,6 +58,7 @@ mpi_tasks_per_node=$(echo "$SLURM_TASKS_PER_NODE" | sed -e  's/^\([0-9][0-9]*\).
 #! Optionally modify the environment seen by the application
 #! (note that SLURM reproduces the environment at submission irrespective of ~/.bashrc):
 . /etc/profile.d/modules.sh                # Leave this line (enables the module command)
+module load cuda/11.4.1
 module purge                               # Removes all modules still loaded
 module load rhel8/default-amp              # REQUIRED - loads the basic environment
 
@@ -97,6 +98,7 @@ mkdir -p checkpoints
 mkdir -p checkpoints/{{experiment_id}}
 JOBID={{experiment_id}}
 CMD="$application $options > logs/out.$JOBID"
+
 
 echo -e "JobID: $JOBID\n======"
 echo "Time: `date`"
