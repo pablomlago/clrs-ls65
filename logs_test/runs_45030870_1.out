@@ -1,0 +1,76 @@
+Loading rhel8/default-amp
+  Loading requirement: dot rhel8/slurm singularity/current rhel8/global
+    cuda/11.4 libpciaccess/0.16/gcc-9.4.0-6fonbj6
+    libiconv/1.16/gcc-9.4.0-ahebbov libxml2/2.9.12/gcc-9.4.0-gnknt5e
+    ncurses/6.2/gcc-9.4.0-aiirok7 hwloc/2.5.0/gcc-9.4.0-7sqomga
+    libevent/2.1.12/gcc-9.4.0-hgny7cm numactl/2.0.14/gcc-9.4.0-52dwc6n
+    cuda/11.4.0/gcc-9.4.0-3hnxhjt gdrcopy/2.2/gcc-9.4.0-e4igtfp
+    knem/1.1.4/gcc-9.4.0-bpbxgva libnl/3.3.0/gcc-9.4.0-whwhrwb
+    rdma-core/34.0/gcc-9.4.0-5eo5n2u ucx/1.11.1/gcc-9.4.0-lktqyl4
+    openmpi/4.1.1/gcc-9.4.0-epagguv
+Changed directory to /rds/user/ar2217/hpc-work/L65/clrs-ls65.
+
+JobID: 6
+======
+Time: Tue Feb 20 09:48:55 GMT 2024
+Running on master node: gpu-q-49
+Current directory: /rds/user/ar2217/hpc-work/L65/clrs-ls65
+
+Nodes allocated:
+================
+gpu-q-49
+
+numtasks=1, numnodes=1, mpi_tasks_per_node=1 (OMP_NUM_THREADS=1)
+
+Executing command:
+==================
+python -m clrs.examples.run --checkpoint_path ./checkpoints/6 --processor_type mpnn_l1_regularised --regularisation_weight 1e-06 --checkpoint_path /tmp/CLRS30/6 --dataset_path /tmp/CLRS30/6 > logs/out.6
+
+2024-02-20 09:49:02.742195: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2024-02-20 09:49:02.742389: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2024-02-20 09:49:03.007200: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2024-02-20 09:49:06.535665: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+I0220 09:49:15.406597 22463740678272 xla_bridge.py:660] Unable to initialize backend 'cuda': Found cuSOLVER version 11200, but JAX was built against version 11401, which is newer. The copy of cuSOLVER that is installed must be at least as new as the version against which JAX was built.
+I0220 09:49:15.429413 22463740678272 xla_bridge.py:660] Unable to initialize backend 'rocm': NOT_FOUND: Could not find registered platform with name: "rocm". Available platform names are: CUDA
+I0220 09:49:15.433402 22463740678272 xla_bridge.py:660] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+W0220 09:49:15.433526 22463740678272 xla_bridge.py:724] CUDA backend failed to initialize: Found cuSOLVER version 11200, but JAX was built against version 11401, which is newer. The copy of cuSOLVER that is installed must be at least as new as the version against which JAX was built. (Set TF_CPP_MIN_LOG_LEVEL=0 and rerun for more info.)
+I0220 09:49:16.322971 22463740678272 run.py:314] Creating samplers for algo bfs
+W0220 09:49:16.323538 22463740678272 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:49:16.323817 22463740678272 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:49:16.522650 22463740678272 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:49:16.522922 22463740678272 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:49:16.741775 22463740678272 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:49:16.742018 22463740678272 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:49:17.012378 22463740678272 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:49:17.012633 22463740678272 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:49:17.321813 22463740678272 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:49:17.322088 22463740678272 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:49:17.692729 22463740678272 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+I0220 09:49:17.692973 22463740678272 samplers.py:112] Creating a dataset with 64 samples.
+I0220 09:49:17.718506 22463740678272 run.py:173] Dataset not found in /tmp/CLRS30/6/CLRS30_v1.0.0. Downloading...
+Traceback (most recent call last):
+  File "/home/ar2217/.conda/envs/env_L65/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/ar2217/.conda/envs/env_L65/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/rds/user/ar2217/hpc-work/L65/clrs-ls65/clrs/examples/run.py", line 553, in <module>
+    app.run(main)
+  File "/home/ar2217/.conda/envs/env_L65/lib/python3.9/site-packages/absl/app.py", line 308, in run
+    _run_main(main, args)
+  File "/home/ar2217/.conda/envs/env_L65/lib/python3.9/site-packages/absl/app.py", line 254, in _run_main
+    sys.exit(main(argv))
+  File "/rds/user/ar2217/hpc-work/L65/clrs-ls65/clrs/examples/run.py", line 401, in main
+    spec_list) = create_samplers(rng, train_lengths)
+  File "/rds/user/ar2217/hpc-work/L65/clrs-ls65/clrs/examples/run.py", line 364, in create_samplers
+    test_sampler, test_samples, spec = make_multi_sampler(**test_args)
+  File "/rds/user/ar2217/hpc-work/L65/clrs-ls65/clrs/examples/run.py", line 253, in make_multi_sampler
+    sampler, num_samples, spec = make_sampler(length, rng, **kwargs)
+  File "/rds/user/ar2217/hpc-work/L65/clrs-ls65/clrs/examples/run.py", line 221, in make_sampler
+    dataset_folder = _maybe_download_dataset(FLAGS.dataset_path)
+  File "/rds/user/ar2217/hpc-work/L65/clrs-ls65/clrs/examples/run.py", line 178, in _maybe_download_dataset
+    os.makedirs(dataset_folder)
+  File "/home/ar2217/.conda/envs/env_L65/lib/python3.9/os.py", line 215, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/home/ar2217/.conda/envs/env_L65/lib/python3.9/os.py", line 225, in makedirs
+    mkdir(name, mode)
+PermissionError: [Errno 13] Permission denied: '/tmp/CLRS30/6'

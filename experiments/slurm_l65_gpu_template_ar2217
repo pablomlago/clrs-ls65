@@ -28,6 +28,8 @@
 #! Uncomment this to prevent the job from being requeued (e.g. if
 #! interrupted by node failure or system downtime):
 ##SBATCH --no-requeue
+#SBATCH --array=1
+#SBATCH --output=logs_test/runs_%A_%a.out
 
 #! Do not change:
 #SBATCH -p ampere
@@ -60,7 +62,7 @@ module purge                               # Removes all modules still loaded
 module load rhel8/default-amp              # REQUIRED - loads the basic environment
 
 source /home/${USER}/.bashrc
-conda activate clrs_env
+conda activate env_L65
 #! Insert additional module load commands after this line if needed:
 
 #! Full path to application executable: 

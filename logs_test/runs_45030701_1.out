@@ -1,0 +1,262 @@
+Loading rhel8/default-amp
+  Loading requirement: dot rhel8/slurm singularity/current rhel8/global
+    cuda/11.4 libpciaccess/0.16/gcc-9.4.0-6fonbj6
+    libiconv/1.16/gcc-9.4.0-ahebbov libxml2/2.9.12/gcc-9.4.0-gnknt5e
+    ncurses/6.2/gcc-9.4.0-aiirok7 hwloc/2.5.0/gcc-9.4.0-7sqomga
+    libevent/2.1.12/gcc-9.4.0-hgny7cm numactl/2.0.14/gcc-9.4.0-52dwc6n
+    cuda/11.4.0/gcc-9.4.0-3hnxhjt gdrcopy/2.2/gcc-9.4.0-e4igtfp
+    knem/1.1.4/gcc-9.4.0-bpbxgva libnl/3.3.0/gcc-9.4.0-whwhrwb
+    rdma-core/34.0/gcc-9.4.0-5eo5n2u ucx/1.11.1/gcc-9.4.0-lktqyl4
+    openmpi/4.1.1/gcc-9.4.0-epagguv
+Changed directory to /rds/user/ar2217/hpc-work/L65/clrs-ls65.
+
+JobID: 0
+======
+Time: Tue Feb 20 09:39:01 GMT 2024
+Running on master node: gpu-q-18
+Current directory: /rds/user/ar2217/hpc-work/L65/clrs-ls65
+
+Nodes allocated:
+================
+gpu-q-18
+
+numtasks=1, numnodes=1, mpi_tasks_per_node=1 (OMP_NUM_THREADS=1)
+
+Executing command:
+==================
+python -m clrs.examples.run --checkpoint_path ./checkpoints/0 --processor_type mpnn_l2 --regularisation_weight 0.0 --checkpoint_path /tmp/CLRS30/0 --dataset_path /tmp/CLRS30/0 > logs/out.0
+
+2024-02-20 09:39:08.645657: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2024-02-20 09:39:08.645825: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2024-02-20 09:39:08.918241: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2024-02-20 09:39:12.539489: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+I0220 09:39:21.909933 23161387290752 xla_bridge.py:660] Unable to initialize backend 'cuda': Found cuSOLVER version 11200, but JAX was built against version 11401, which is newer. The copy of cuSOLVER that is installed must be at least as new as the version against which JAX was built.
+I0220 09:39:21.933710 23161387290752 xla_bridge.py:660] Unable to initialize backend 'rocm': NOT_FOUND: Could not find registered platform with name: "rocm". Available platform names are: CUDA
+I0220 09:39:21.941842 23161387290752 xla_bridge.py:660] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+W0220 09:39:21.941976 23161387290752 xla_bridge.py:724] CUDA backend failed to initialize: Found cuSOLVER version 11200, but JAX was built against version 11401, which is newer. The copy of cuSOLVER that is installed must be at least as new as the version against which JAX was built. (Set TF_CPP_MIN_LOG_LEVEL=0 and rerun for more info.)
+I0220 09:39:22.845500 23161387290752 run.py:314] Creating samplers for algo bfs
+W0220 09:39:22.846054 23161387290752 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:39:22.846328 23161387290752 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:39:23.047365 23161387290752 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:39:23.047617 23161387290752 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:39:23.268306 23161387290752 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:39:23.268553 23161387290752 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:39:23.540143 23161387290752 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:39:23.540394 23161387290752 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:39:23.849624 23161387290752 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+W0220 09:39:23.849895 23161387290752 samplers.py:100] Sampling dataset on-the-fly, unlimited samples.
+W0220 09:39:24.221691 23161387290752 samplers.py:277] Ignoring kwargs {'length_needle'} when building sampler class <class 'clrs._src.samplers.BfsSampler'>
+I0220 09:39:24.221946 23161387290752 samplers.py:112] Creating a dataset with 64 samples.
+I0220 09:39:24.247534 23161387290752 run.py:173] Dataset not found in /tmp/CLRS30/0/CLRS30_v1.0.0. Downloading...
+I0220 09:39:39.510340 23161387290752 dataset_info.py:482] Load dataset info from /tmp/CLRS30/0/CLRS30_v1.0.0/clrs_dataset/bfs_test/1.0.0
+I0220 09:39:39.513071 23161387290752 dataset_info.py:482] Load dataset info from /tmp/CLRS30/0/CLRS30_v1.0.0/clrs_dataset/bfs_test/1.0.0
+I0220 09:39:39.513639 23161387290752 dataset_builder.py:366] Reusing dataset clrs_dataset (/tmp/CLRS30/0/CLRS30_v1.0.0/clrs_dataset/bfs_test/1.0.0)
+I0220 09:39:39.513737 23161387290752 logging_logger.py:44] Constructing tf.data.Dataset clrs_dataset for split test, from /tmp/CLRS30/0/CLRS30_v1.0.0/clrs_dataset/bfs_test/1.0.0
+I0220 09:39:49.992950 23161387290752 run.py:488] Algo bfs step 0 current loss 2.806006, current_train_items 32.
+I0220 09:39:50.553868 23161387290752 run.py:508] (val) algo bfs step 0: {'pi': 0.595703125, 'score': 0.595703125, 'examples_seen': 32, 'step': 0, 'algorithm': 'bfs'}
+I0220 09:39:50.554105 23161387290752 run.py:524] Checkpointing best model, best avg val score was -1.000, current avg val score is 0.596, val scores are: bfs: 0.596
+I0220 09:39:57.485835 23161387290752 run.py:488] Algo bfs step 1 current loss 2.388057, current_train_items 64.
+I0220 09:40:04.670355 23161387290752 run.py:488] Algo bfs step 2 current loss 2.129044, current_train_items 96.
+I0220 09:40:11.883558 23161387290752 run.py:488] Algo bfs step 3 current loss 2.151893, current_train_items 128.
+I0220 09:40:18.694018 23161387290752 run.py:488] Algo bfs step 4 current loss 1.831398, current_train_items 160.
+I0220 09:40:18.727893 23161387290752 run.py:488] Algo bfs step 5 current loss 0.704504, current_train_items 192.
+I0220 09:40:18.831117 23161387290752 run.py:488] Algo bfs step 6 current loss 0.997817, current_train_items 224.
+I0220 09:40:19.057246 23161387290752 run.py:488] Algo bfs step 7 current loss 1.048107, current_train_items 256.
+I0220 09:40:19.315168 23161387290752 run.py:488] Algo bfs step 8 current loss 1.047918, current_train_items 288.
+I0220 09:40:19.639488 23161387290752 run.py:488] Algo bfs step 9 current loss 1.312654, current_train_items 320.
+I0220 09:40:19.670889 23161387290752 run.py:488] Algo bfs step 10 current loss 0.419646, current_train_items 352.
+I0220 09:40:19.774224 23161387290752 run.py:488] Algo bfs step 11 current loss 0.656172, current_train_items 384.
+I0220 09:40:20.007018 23161387290752 run.py:488] Algo bfs step 12 current loss 0.777799, current_train_items 416.
+I0220 09:40:20.277447 23161387290752 run.py:488] Algo bfs step 13 current loss 0.859412, current_train_items 448.
+I0220 09:40:20.602926 23161387290752 run.py:488] Algo bfs step 14 current loss 1.017056, current_train_items 480.
+I0220 09:40:20.634012 23161387290752 run.py:488] Algo bfs step 15 current loss 0.270512, current_train_items 512.
+I0220 09:40:20.737667 23161387290752 run.py:488] Algo bfs step 16 current loss 0.533370, current_train_items 544.
+I0220 09:40:20.965569 23161387290752 run.py:488] Algo bfs step 17 current loss 0.526701, current_train_items 576.
+I0220 09:40:21.227883 23161387290752 run.py:488] Algo bfs step 18 current loss 0.637873, current_train_items 608.
+I0220 09:40:21.546358 23161387290752 run.py:488] Algo bfs step 19 current loss 0.578926, current_train_items 640.
+I0220 09:40:21.577419 23161387290752 run.py:488] Algo bfs step 20 current loss 0.175609, current_train_items 672.
+I0220 09:40:21.681415 23161387290752 run.py:488] Algo bfs step 21 current loss 0.372186, current_train_items 704.
+I0220 09:40:21.909343 23161387290752 run.py:488] Algo bfs step 22 current loss 0.607823, current_train_items 736.
+I0220 09:40:22.170950 23161387290752 run.py:488] Algo bfs step 23 current loss 0.588204, current_train_items 768.
+I0220 09:40:22.492801 23161387290752 run.py:488] Algo bfs step 24 current loss 0.534163, current_train_items 800.
+I0220 09:40:22.523933 23161387290752 run.py:488] Algo bfs step 25 current loss 0.126190, current_train_items 832.
+I0220 09:40:22.627646 23161387290752 run.py:488] Algo bfs step 26 current loss 0.320422, current_train_items 864.
+I0220 09:40:22.857840 23161387290752 run.py:488] Algo bfs step 27 current loss 0.461014, current_train_items 896.
+I0220 09:40:23.124404 23161387290752 run.py:488] Algo bfs step 28 current loss 0.544881, current_train_items 928.
+I0220 09:40:23.445683 23161387290752 run.py:488] Algo bfs step 29 current loss 0.425664, current_train_items 960.
+I0220 09:40:23.476878 23161387290752 run.py:488] Algo bfs step 30 current loss 0.087803, current_train_items 992.
+I0220 09:40:23.579355 23161387290752 run.py:488] Algo bfs step 31 current loss 0.216099, current_train_items 1024.
+I0220 09:40:23.807404 23161387290752 run.py:488] Algo bfs step 32 current loss 0.277004, current_train_items 1056.
+I0220 09:40:24.067485 23161387290752 run.py:488] Algo bfs step 33 current loss 0.288583, current_train_items 1088.
+I0220 09:40:24.389589 23161387290752 run.py:488] Algo bfs step 34 current loss 0.515390, current_train_items 1120.
+I0220 09:40:24.420463 23161387290752 run.py:488] Algo bfs step 35 current loss 0.072302, current_train_items 1152.
+I0220 09:40:24.523328 23161387290752 run.py:488] Algo bfs step 36 current loss 0.163635, current_train_items 1184.
+I0220 09:40:24.751806 23161387290752 run.py:488] Algo bfs step 37 current loss 0.332162, current_train_items 1216.
+I0220 09:40:25.006629 23161387290752 run.py:488] Algo bfs step 38 current loss 0.255954, current_train_items 1248.
+I0220 09:40:25.328227 23161387290752 run.py:488] Algo bfs step 39 current loss 0.326445, current_train_items 1280.
+I0220 09:40:25.358776 23161387290752 run.py:488] Algo bfs step 40 current loss 0.060458, current_train_items 1312.
+I0220 09:40:25.462255 23161387290752 run.py:488] Algo bfs step 41 current loss 0.183006, current_train_items 1344.
+I0220 09:40:25.683629 23161387290752 run.py:488] Algo bfs step 42 current loss 0.190219, current_train_items 1376.
+I0220 09:40:25.949029 23161387290752 run.py:488] Algo bfs step 43 current loss 0.254631, current_train_items 1408.
+I0220 09:40:26.262158 23161387290752 run.py:488] Algo bfs step 44 current loss 0.358678, current_train_items 1440.
+I0220 09:40:26.292807 23161387290752 run.py:488] Algo bfs step 45 current loss 0.034385, current_train_items 1472.
+I0220 09:40:26.396491 23161387290752 run.py:488] Algo bfs step 46 current loss 0.160701, current_train_items 1504.
+I0220 09:40:26.622247 23161387290752 run.py:488] Algo bfs step 47 current loss 0.445336, current_train_items 1536.
+I0220 09:40:26.882926 23161387290752 run.py:488] Algo bfs step 48 current loss 0.291744, current_train_items 1568.
+I0220 09:40:27.203813 23161387290752 run.py:488] Algo bfs step 49 current loss 0.248545, current_train_items 1600.
+I0220 09:40:27.234669 23161387290752 run.py:488] Algo bfs step 50 current loss 0.061199, current_train_items 1632.
+I0220 09:40:27.309894 23161387290752 run.py:508] (val) algo bfs step 50: {'pi': 0.98046875, 'score': 0.98046875, 'examples_seen': 1632, 'step': 50, 'algorithm': 'bfs'}
+I0220 09:40:27.310090 23161387290752 run.py:524] Checkpointing best model, best avg val score was 0.596, current avg val score is 0.980, val scores are: bfs: 0.980
+I0220 09:40:27.418487 23161387290752 run.py:488] Algo bfs step 51 current loss 0.092453, current_train_items 1664.
+I0220 09:40:27.640182 23161387290752 run.py:488] Algo bfs step 52 current loss 0.197129, current_train_items 1696.
+I0220 09:40:27.902457 23161387290752 run.py:488] Algo bfs step 53 current loss 0.192916, current_train_items 1728.
+I0220 09:40:28.216194 23161387290752 run.py:488] Algo bfs step 54 current loss 0.198532, current_train_items 1760.
+I0220 09:40:28.246401 23161387290752 run.py:488] Algo bfs step 55 current loss 0.025682, current_train_items 1792.
+I0220 09:40:28.349111 23161387290752 run.py:488] Algo bfs step 56 current loss 0.088562, current_train_items 1824.
+I0220 09:40:28.569725 23161387290752 run.py:488] Algo bfs step 57 current loss 0.118497, current_train_items 1856.
+I0220 09:40:28.830803 23161387290752 run.py:488] Algo bfs step 58 current loss 0.169798, current_train_items 1888.
+I0220 09:40:29.150771 23161387290752 run.py:488] Algo bfs step 59 current loss 0.276037, current_train_items 1920.
+I0220 09:40:29.181695 23161387290752 run.py:488] Algo bfs step 60 current loss 0.039834, current_train_items 1952.
+I0220 09:40:29.285955 23161387290752 run.py:488] Algo bfs step 61 current loss 0.085262, current_train_items 1984.
+I0220 09:40:29.510574 23161387290752 run.py:488] Algo bfs step 62 current loss 0.099548, current_train_items 2016.
+I0220 09:40:29.773254 23161387290752 run.py:488] Algo bfs step 63 current loss 0.163840, current_train_items 2048.
+I0220 09:40:30.084906 23161387290752 run.py:488] Algo bfs step 64 current loss 0.165036, current_train_items 2080.
+I0220 09:40:30.115183 23161387290752 run.py:488] Algo bfs step 65 current loss 0.021459, current_train_items 2112.
+I0220 09:40:30.218718 23161387290752 run.py:488] Algo bfs step 66 current loss 0.083650, current_train_items 2144.
+I0220 09:40:30.448891 23161387290752 run.py:488] Algo bfs step 67 current loss 0.156162, current_train_items 2176.
+I0220 09:40:30.708209 23161387290752 run.py:488] Algo bfs step 68 current loss 0.153865, current_train_items 2208.
+I0220 09:40:31.039197 23161387290752 run.py:488] Algo bfs step 69 current loss 0.147820, current_train_items 2240.
+I0220 09:40:31.069710 23161387290752 run.py:488] Algo bfs step 70 current loss 0.015898, current_train_items 2272.
+I0220 09:40:31.172428 23161387290752 run.py:488] Algo bfs step 71 current loss 0.050741, current_train_items 2304.
+I0220 09:40:31.393235 23161387290752 run.py:488] Algo bfs step 72 current loss 0.079526, current_train_items 2336.
+I0220 09:40:31.656164 23161387290752 run.py:488] Algo bfs step 73 current loss 0.129121, current_train_items 2368.
+I0220 09:40:31.975775 23161387290752 run.py:488] Algo bfs step 74 current loss 0.141161, current_train_items 2400.
+I0220 09:40:32.006624 23161387290752 run.py:488] Algo bfs step 75 current loss 0.021327, current_train_items 2432.
+I0220 09:40:32.110666 23161387290752 run.py:488] Algo bfs step 76 current loss 0.052264, current_train_items 2464.
+I0220 09:40:32.339784 23161387290752 run.py:488] Algo bfs step 77 current loss 0.079683, current_train_items 2496.
+I0220 09:40:32.588423 23161387290752 run.py:488] Algo bfs step 78 current loss 0.135785, current_train_items 2528.
+I0220 09:40:32.908987 23161387290752 run.py:488] Algo bfs step 79 current loss 0.157158, current_train_items 2560.
+I0220 09:40:32.939188 23161387290752 run.py:488] Algo bfs step 80 current loss 0.006091, current_train_items 2592.
+I0220 09:40:33.043167 23161387290752 run.py:488] Algo bfs step 81 current loss 0.038488, current_train_items 2624.
+I0220 09:40:33.269884 23161387290752 run.py:488] Algo bfs step 82 current loss 0.053620, current_train_items 2656.
+I0220 09:40:33.524502 23161387290752 run.py:488] Algo bfs step 83 current loss 0.098166, current_train_items 2688.
+I0220 09:40:33.843434 23161387290752 run.py:488] Algo bfs step 84 current loss 0.132795, current_train_items 2720.
+I0220 09:40:33.874491 23161387290752 run.py:488] Algo bfs step 85 current loss 0.011250, current_train_items 2752.
+I0220 09:40:33.977715 23161387290752 run.py:488] Algo bfs step 86 current loss 0.019833, current_train_items 2784.
+I0220 09:40:34.204797 23161387290752 run.py:488] Algo bfs step 87 current loss 0.260210, current_train_items 2816.
+I0220 09:40:34.460038 23161387290752 run.py:488] Algo bfs step 88 current loss 0.109423, current_train_items 2848.
+I0220 09:40:34.781006 23161387290752 run.py:488] Algo bfs step 89 current loss 0.136427, current_train_items 2880.
+I0220 09:40:34.811208 23161387290752 run.py:488] Algo bfs step 90 current loss 0.018244, current_train_items 2912.
+I0220 09:40:34.915574 23161387290752 run.py:488] Algo bfs step 91 current loss 0.045948, current_train_items 2944.
+I0220 09:40:35.146078 23161387290752 run.py:488] Algo bfs step 92 current loss 0.338241, current_train_items 2976.
+I0220 09:40:35.403840 23161387290752 run.py:488] Algo bfs step 93 current loss 0.109108, current_train_items 3008.
+I0220 09:40:35.729202 23161387290752 run.py:488] Algo bfs step 94 current loss 0.488466, current_train_items 3040.
+I0220 09:40:35.760110 23161387290752 run.py:488] Algo bfs step 95 current loss 0.008916, current_train_items 3072.
+I0220 09:40:35.862700 23161387290752 run.py:488] Algo bfs step 96 current loss 0.030696, current_train_items 3104.
+I0220 09:40:36.090011 23161387290752 run.py:488] Algo bfs step 97 current loss 0.084564, current_train_items 3136.
+I0220 09:40:36.348823 23161387290752 run.py:488] Algo bfs step 98 current loss 0.116870, current_train_items 3168.
+I0220 09:40:36.666317 23161387290752 run.py:488] Algo bfs step 99 current loss 0.106183, current_train_items 3200.
+I0220 09:40:36.696700 23161387290752 run.py:488] Algo bfs step 100 current loss 0.006314, current_train_items 3232.
+I0220 09:40:36.770863 23161387290752 run.py:508] (val) algo bfs step 100: {'pi': 0.98828125, 'score': 0.98828125, 'examples_seen': 3232, 'step': 100, 'algorithm': 'bfs'}
+I0220 09:40:36.771034 23161387290752 run.py:524] Checkpointing best model, best avg val score was 0.980, current avg val score is 0.988, val scores are: bfs: 0.988
+I0220 09:40:36.878003 23161387290752 run.py:488] Algo bfs step 101 current loss 0.030676, current_train_items 3264.
+I0220 09:40:37.105165 23161387290752 run.py:488] Algo bfs step 102 current loss 0.054577, current_train_items 3296.
+I0220 09:40:37.368428 23161387290752 run.py:488] Algo bfs step 103 current loss 0.106083, current_train_items 3328.
+I0220 09:40:37.681579 23161387290752 run.py:488] Algo bfs step 104 current loss 0.113035, current_train_items 3360.
+I0220 09:40:37.711851 23161387290752 run.py:488] Algo bfs step 105 current loss 0.007772, current_train_items 3392.
+I0220 09:40:37.816557 23161387290752 run.py:488] Algo bfs step 106 current loss 0.025676, current_train_items 3424.
+I0220 09:40:38.044190 23161387290752 run.py:488] Algo bfs step 107 current loss 0.111032, current_train_items 3456.
+I0220 09:40:38.305724 23161387290752 run.py:488] Algo bfs step 108 current loss 0.087046, current_train_items 3488.
+I0220 09:40:38.627691 23161387290752 run.py:488] Algo bfs step 109 current loss 0.125531, current_train_items 3520.
+I0220 09:40:38.658170 23161387290752 run.py:488] Algo bfs step 110 current loss 0.006098, current_train_items 3552.
+I0220 09:40:38.762423 23161387290752 run.py:488] Algo bfs step 111 current loss 0.043995, current_train_items 3584.
+I0220 09:40:38.992195 23161387290752 run.py:488] Algo bfs step 112 current loss 0.102159, current_train_items 3616.
+I0220 09:40:39.258477 23161387290752 run.py:488] Algo bfs step 113 current loss 0.094426, current_train_items 3648.
+I0220 09:40:39.575646 23161387290752 run.py:488] Algo bfs step 114 current loss 0.104117, current_train_items 3680.
+I0220 09:40:39.606118 23161387290752 run.py:488] Algo bfs step 115 current loss 0.016871, current_train_items 3712.
+I0220 09:40:39.708990 23161387290752 run.py:488] Algo bfs step 116 current loss 0.032893, current_train_items 3744.
+I0220 09:40:39.938252 23161387290752 run.py:488] Algo bfs step 117 current loss 0.103850, current_train_items 3776.
+I0220 09:40:40.202122 23161387290752 run.py:488] Algo bfs step 118 current loss 0.073952, current_train_items 3808.
+I0220 09:40:40.534242 23161387290752 run.py:488] Algo bfs step 119 current loss 0.090112, current_train_items 3840.
+I0220 09:40:40.565314 23161387290752 run.py:488] Algo bfs step 120 current loss 0.004652, current_train_items 3872.
+I0220 09:40:40.667922 23161387290752 run.py:488] Algo bfs step 121 current loss 0.026723, current_train_items 3904.
+I0220 09:40:40.896715 23161387290752 run.py:488] Algo bfs step 122 current loss 0.062184, current_train_items 3936.
+I0220 09:40:41.163219 23161387290752 run.py:488] Algo bfs step 123 current loss 0.085774, current_train_items 3968.
+I0220 09:40:41.490568 23161387290752 run.py:488] Algo bfs step 124 current loss 0.083773, current_train_items 4000.
+I0220 09:40:41.521697 23161387290752 run.py:488] Algo bfs step 125 current loss 0.003149, current_train_items 4032.
+I0220 09:40:41.624551 23161387290752 run.py:488] Algo bfs step 126 current loss 0.023593, current_train_items 4064.
+I0220 09:40:41.846892 23161387290752 run.py:488] Algo bfs step 127 current loss 0.052667, current_train_items 4096.
+I0220 09:40:42.114426 23161387290752 run.py:488] Algo bfs step 128 current loss 0.070027, current_train_items 4128.
+I0220 09:40:42.431491 23161387290752 run.py:488] Algo bfs step 129 current loss 0.078575, current_train_items 4160.
+I0220 09:40:42.461872 23161387290752 run.py:488] Algo bfs step 130 current loss 0.003372, current_train_items 4192.
+I0220 09:40:42.565044 23161387290752 run.py:488] Algo bfs step 131 current loss 0.029682, current_train_items 4224.
+I0220 09:40:42.794937 23161387290752 run.py:488] Algo bfs step 132 current loss 0.035861, current_train_items 4256.
+I0220 09:40:43.055235 23161387290752 run.py:488] Algo bfs step 133 current loss 0.120010, current_train_items 4288.
+I0220 09:40:43.376406 23161387290752 run.py:488] Algo bfs step 134 current loss 0.117067, current_train_items 4320.
+I0220 09:40:43.407414 23161387290752 run.py:488] Algo bfs step 135 current loss 0.004225, current_train_items 4352.
+I0220 09:40:43.510515 23161387290752 run.py:488] Algo bfs step 136 current loss 0.008450, current_train_items 4384.
+I0220 09:40:43.736920 23161387290752 run.py:488] Algo bfs step 137 current loss 0.048538, current_train_items 4416.
+I0220 09:40:44.000453 23161387290752 run.py:488] Algo bfs step 138 current loss 0.099143, current_train_items 4448.
+I0220 09:40:44.322583 23161387290752 run.py:488] Algo bfs step 139 current loss 0.088909, current_train_items 4480.
+I0220 09:40:44.353353 23161387290752 run.py:488] Algo bfs step 140 current loss 0.002896, current_train_items 4512.
+I0220 09:40:44.458956 23161387290752 run.py:488] Algo bfs step 141 current loss 0.025207, current_train_items 4544.
+I0220 09:40:44.682429 23161387290752 run.py:488] Algo bfs step 142 current loss 0.081802, current_train_items 4576.
+I0220 09:40:44.944756 23161387290752 run.py:488] Algo bfs step 143 current loss 0.045552, current_train_items 4608.
+I0220 09:40:45.258754 23161387290752 run.py:488] Algo bfs step 144 current loss 0.091269, current_train_items 4640.
+I0220 09:40:45.289790 23161387290752 run.py:488] Algo bfs step 145 current loss 0.002704, current_train_items 4672.
+I0220 09:40:45.393481 23161387290752 run.py:488] Algo bfs step 146 current loss 0.018390, current_train_items 4704.
+I0220 09:40:45.620873 23161387290752 run.py:488] Algo bfs step 147 current loss 0.066313, current_train_items 4736.
+I0220 09:40:45.878884 23161387290752 run.py:488] Algo bfs step 148 current loss 0.082773, current_train_items 4768.
+I0220 09:40:46.195641 23161387290752 run.py:488] Algo bfs step 149 current loss 0.092396, current_train_items 4800.
+I0220 09:40:46.225731 23161387290752 run.py:488] Algo bfs step 150 current loss 0.001583, current_train_items 4832.
+I0220 09:40:46.299222 23161387290752 run.py:508] (val) algo bfs step 150: {'pi': 0.990234375, 'score': 0.990234375, 'examples_seen': 4832, 'step': 150, 'algorithm': 'bfs'}
+I0220 09:40:46.299377 23161387290752 run.py:524] Checkpointing best model, best avg val score was 0.988, current avg val score is 0.990, val scores are: bfs: 0.990
+I0220 09:40:46.406638 23161387290752 run.py:488] Algo bfs step 151 current loss 0.039154, current_train_items 4864.
+I0220 09:40:46.633138 23161387290752 run.py:488] Algo bfs step 152 current loss 0.058296, current_train_items 4896.
+I0220 09:40:46.900052 23161387290752 run.py:488] Algo bfs step 153 current loss 0.134019, current_train_items 4928.
+W0220 09:40:46.914346 23161387290752 samplers.py:155] Increasing hint lengh from 9 to 10
+I0220 09:40:53.783919 23161387290752 run.py:488] Algo bfs step 154 current loss 0.169087, current_train_items 4960.
+I0220 09:40:53.817233 23161387290752 run.py:488] Algo bfs step 155 current loss 0.004672, current_train_items 4992.
+I0220 09:40:53.919455 23161387290752 run.py:488] Algo bfs step 156 current loss 0.015687, current_train_items 5024.
+I0220 09:40:54.153673 23161387290752 run.py:488] Algo bfs step 157 current loss 0.062542, current_train_items 5056.
+I0220 09:40:54.417663 23161387290752 run.py:488] Algo bfs step 158 current loss 0.070542, current_train_items 5088.
+I0220 09:40:54.776003 23161387290752 run.py:488] Algo bfs step 159 current loss 0.066639, current_train_items 5120.
+I0220 09:40:54.806751 23161387290752 run.py:488] Algo bfs step 160 current loss 0.009202, current_train_items 5152.
+I0220 09:40:54.909294 23161387290752 run.py:488] Algo bfs step 161 current loss 0.013725, current_train_items 5184.
+I0220 09:40:55.137887 23161387290752 run.py:488] Algo bfs step 162 current loss 0.061615, current_train_items 5216.
+I0220 09:40:55.404050 23161387290752 run.py:488] Algo bfs step 163 current loss 0.068756, current_train_items 5248.
+I0220 09:40:55.773854 23161387290752 run.py:488] Algo bfs step 164 current loss 0.091143, current_train_items 5280.
+I0220 09:40:55.804862 23161387290752 run.py:488] Algo bfs step 165 current loss 0.012982, current_train_items 5312.
+I0220 09:40:55.907220 23161387290752 run.py:488] Algo bfs step 166 current loss 0.013390, current_train_items 5344.
+I0220 09:40:56.135754 23161387290752 run.py:488] Algo bfs step 167 current loss 0.054034, current_train_items 5376.
+I0220 09:40:56.387467 23161387290752 run.py:488] Algo bfs step 168 current loss 0.046910, current_train_items 5408.
+I0220 09:40:56.740010 23161387290752 run.py:488] Algo bfs step 169 current loss 0.065177, current_train_items 5440.
+I0220 09:40:56.770632 23161387290752 run.py:488] Algo bfs step 170 current loss 0.011465, current_train_items 5472.
+I0220 09:40:56.874089 23161387290752 run.py:488] Algo bfs step 171 current loss 0.020608, current_train_items 5504.
+I0220 09:40:57.106428 23161387290752 run.py:488] Algo bfs step 172 current loss 0.035582, current_train_items 5536.
+I0220 09:40:57.371683 23161387290752 run.py:488] Algo bfs step 173 current loss 0.039271, current_train_items 5568.
+I0220 09:40:57.736512 23161387290752 run.py:488] Algo bfs step 174 current loss 0.067912, current_train_items 5600.
+I0220 09:40:57.767361 23161387290752 run.py:488] Algo bfs step 175 current loss 0.002763, current_train_items 5632.
+I0220 09:40:57.870485 23161387290752 run.py:488] Algo bfs step 176 current loss 0.022016, current_train_items 5664.
+I0220 09:40:58.096658 23161387290752 run.py:488] Algo bfs step 177 current loss 0.020148, current_train_items 5696.
+I0220 09:40:58.356421 23161387290752 run.py:488] Algo bfs step 178 current loss 0.048112, current_train_items 5728.
+I0220 09:40:58.706788 23161387290752 run.py:488] Algo bfs step 179 current loss 0.047400, current_train_items 5760.
+I0220 09:40:58.737461 23161387290752 run.py:488] Algo bfs step 180 current loss 0.005140, current_train_items 5792.
+I0220 09:40:58.841869 23161387290752 run.py:488] Algo bfs step 181 current loss 0.023583, current_train_items 5824.
+I0220 09:40:59.071138 23161387290752 run.py:488] Algo bfs step 182 current loss 0.027978, current_train_items 5856.
+I0220 09:40:59.339490 23161387290752 run.py:488] Algo bfs step 183 current loss 0.045596, current_train_items 5888.
+I0220 09:40:59.692028 23161387290752 run.py:488] Algo bfs step 184 current loss 0.055837, current_train_items 5920.
+I0220 09:40:59.722584 23161387290752 run.py:488] Algo bfs step 185 current loss 0.001927, current_train_items 5952.
+I0220 09:40:59.824637 23161387290752 run.py:488] Algo bfs step 186 current loss 0.010550, current_train_items 5984.
+I0220 09:41:00.054043 23161387290752 run.py:488] Algo bfs step 187 current loss 0.029824, current_train_items 6016.
+I0220 09:41:00.316846 23161387290752 run.py:488] Algo bfs step 188 current loss 0.031777, current_train_items 6048.
+I0220 09:41:00.671762 23161387290752 run.py:488] Algo bfs step 189 current loss 0.047203, current_train_items 6080.
+I0220 09:41:00.703243 23161387290752 run.py:488] Algo bfs step 190 current loss 0.005190, current_train_items 6112.
+I0220 09:41:00.804383 23161387290752 run.py:488] Algo bfs step 191 current loss 0.020680, current_train_items 6144.
+I0220 09:41:01.030556 23161387290752 run.py:488] Algo bfs step 192 current loss 0.016556, current_train_items 6176.
+I0220 09:41:01.299788 23161387290752 run.py:488] Algo bfs step 193 current loss 0.048394, current_train_items 6208.
+I0220 09:41:01.658926 23161387290752 run.py:488] Algo bfs step 194 current loss 0.050290, current_train_items 6240.
+I0220 09:41:01.689182 23161387290752 run.py:488] Algo bfs step 195 current loss 0.028145, current_train_items 6272.
+I0220 09:41:01.792569 23161387290752 run.py:488] Algo bfs step 196 current loss 0.019698, current_train_items 6304.
+I0220 09:41:02.024451 23161387290752 run.py:488] Algo bfs step 197 current loss 0.018905, current_train_items 6336.
+slurmstepd: error: *** JOB 45030701 ON gpu-q-18 CANCELLED AT 2024-02-20T09:41:02 ***

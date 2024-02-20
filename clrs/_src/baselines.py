@@ -37,6 +37,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
+from absl import logging
 
 _Array = chex.Array
 _DataPoint = probing.DataPoint
@@ -431,7 +432,8 @@ class BaselineModel(model.Model):
     #   b = json.load(fp)
 
     jax.debug.print("[DEBUG] Regularised loss {reg_loss}, Regularisation weight {reg_weight}, MSE loss {mse_loss}", reg_loss=regularisation_loss, reg_weight=self.regularisation_weight, mse_loss=mse_loss)
-
+    #logging.info('Regularised loss %f MSE loss %f total_loss %f', regularisation_loss, mse_loss, total_loss)
+    #print(f"Regularised loss {regularisation_loss}")
     return total_loss + regularisation_loss
 
   def _update_params(self, params, grads, opt_state, algorithm_index):
