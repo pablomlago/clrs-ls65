@@ -1,0 +1,6 @@
+[DEBUG] Regularised loss: 0.0, Regularisation weight: 0.0, MSE loss: 0.012494989670813084, Quality loss: 2.838315963745117
+I0221 21:31:56.943763 8080809664 run.py:477] Algo bfs step 1 current loss 2.838316, current_train_items 64.
+[DEBUG] Regularised loss: 0.0, Regularisation weight: 0.0, MSE loss: 0.019464237615466118, Quality loss: 2.644104242324829
+I0221 21:32:05.081356 8080809664 run.py:477] Algo bfs step 2 current loss 2.644104, current_train_items 96.
+[DEBUG] Regularised loss: 0.0, Regularisation weight: 0.0, MSE loss: 0.023749860003590584, Quality loss: 2.4198086261749268
+I0221 21:32:13.387354 8080809664 run.py:477] Algo bfs step 3 current loss 2.419809, current_train_items 128.

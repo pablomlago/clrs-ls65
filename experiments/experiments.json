@@ -2,5 +2,275 @@
     "0": {
         "processor_type": "triplet_gmpnn",
         "regularisation_weight": 0.0
+    },
+    "1": {
+        "processor_type": "mpnn_l1",
+        "algorithm": "dfs",
+        "regularisation_weight": 0.0
+    },
+    "2": {
+        "processor_type": "mpnn_l1_max",
+        "algorithm": "dfs",
+        "regularisation_weight": 0.0
+    },
+    "3": {
+        "processor_type": "mpnn_l2",
+        "algorithm": "dfs",
+        "regularisation_weight": 0.0
+    },
+    "4": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "dfs",
+        "regularisation_weight": 0.1
+    },
+    "5": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "dfs",
+        "regularisation_weight": 0.01
+    },
+    "6": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "dfs",
+        "regularisation_weight": 0.001
+    },
+    "7": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "dfs",
+        "regularisation_weight": 0.0001
+    },
+    "8": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "dfs",
+        "regularisation_weight": 1e-05
+    },
+    "9": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "dfs",
+        "regularisation_weight": 1e-06
+    },
+    "10": {
+        "processor_type": "mpnn_l1",
+        "algorithm": "bfs",
+        "regularisation_weight": 0.0
+    },
+    "11": {
+        "processor_type": "mpnn_l1_max",
+        "algorithm": "bfs",
+        "regularisation_weight": 0.0
+    },
+    "12": {
+        "processor_type": "mpnn_l2",
+        "algorithm": "bfs",
+        "regularisation_weight": 0.0
+    },
+    "13": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bfs",
+        "regularisation_weight": 0.1
+    },
+    "14": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bfs",
+        "regularisation_weight": 0.01
+    },
+    "15": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bfs",
+        "regularisation_weight": 0.001
+    },
+    "16": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bfs",
+        "regularisation_weight": 0.0001
+    },
+    "17": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bfs",
+        "regularisation_weight": 1e-05
+    },
+    "18": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bfs",
+        "regularisation_weight": 1e-06
+    },
+    "19": {
+        "processor_type": "mpnn_l1",
+        "algorithm": "bellman_ford",
+        "regularisation_weight": 0.0
+    },
+    "20": {
+        "processor_type": "mpnn_l1_max",
+        "algorithm": "bellman_ford",
+        "regularisation_weight": 0.0
+    },
+    "21": {
+        "processor_type": "mpnn_l2",
+        "algorithm": "bellman_ford",
+        "regularisation_weight": 0.0
+    },
+    "22": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bellman_ford",
+        "regularisation_weight": 0.1
+    },
+    "23": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bellman_ford",
+        "regularisation_weight": 0.01
+    },
+    "24": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bellman_ford",
+        "regularisation_weight": 0.001
+    },
+    "25": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bellman_ford",
+        "regularisation_weight": 0.0001
+    },
+    "26": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bellman_ford",
+        "regularisation_weight": 1e-05
+    },
+    "27": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "bellman_ford",
+        "regularisation_weight": 1e-06
+    },
+    "28": {
+        "processor_type": "mpnn_l1",
+        "algorithm": "max_subarray",
+        "regularisation_weight": 0.0
+    },
+    "29": {
+        "processor_type": "mpnn_l1_max",
+        "algorithm": "max_subarray",
+        "regularisation_weight": 0.0
+    },
+    "30": {
+        "processor_type": "mpnn_l2",
+        "algorithm": "max_subarray",
+        "regularisation_weight": 0.0
+    },
+    "31": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "max_subarray",
+        "regularisation_weight": 0.1
+    },
+    "32": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "max_subarray",
+        "regularisation_weight": 0.01
+    },
+    "33": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "max_subarray",
+        "regularisation_weight": 0.001
+    },
+    "34": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "max_subarray",
+        "regularisation_weight": 0.0001
+    },
+    "35": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "max_subarray",
+        "regularisation_weight": 1e-05
+    },
+    "36": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "max_subarray",
+        "regularisation_weight": 1e-06
+    },
+    "37": {
+        "processor_type": "mpnn_l1",
+        "algorithm": "lcs_length",
+        "regularisation_weight": 0.0
+    },
+    "38": {
+        "processor_type": "mpnn_l1_max",
+        "algorithm": "lcs_length",
+        "regularisation_weight": 0.0
+    },
+    "39": {
+        "processor_type": "mpnn_l2",
+        "algorithm": "lcs_length",
+        "regularisation_weight": 0.0
+    },
+    "40": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "lcs_length",
+        "regularisation_weight": 0.1
+    },
+    "41": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "lcs_length",
+        "regularisation_weight": 0.01
+    },
+    "42": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "lcs_length",
+        "regularisation_weight": 0.001
+    },
+    "43": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "lcs_length",
+        "regularisation_weight": 0.0001
+    },
+    "44": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "lcs_length",
+        "regularisation_weight": 1e-05
+    },
+    "45": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "lcs_length",
+        "regularisation_weight": 1e-06
+    },
+    "46": {
+        "processor_type": "mpnn_l1",
+        "algorithm": "jarvis_march",
+        "regularisation_weight": 0.0
+    },
+    "47": {
+        "processor_type": "mpnn_l1_max",
+        "algorithm": "jarvis_march",
+        "regularisation_weight": 0.0
+    },
+    "48": {
+        "processor_type": "mpnn_l2",
+        "algorithm": "jarvis_march",
+        "regularisation_weight": 0.0
+    },
+    "49": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "jarvis_march",
+        "regularisation_weight": 0.1
+    },
+    "50": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "jarvis_march",
+        "regularisation_weight": 0.01
+    },
+    "51": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "jarvis_march",
+        "regularisation_weight": 0.001
+    },
+    "52": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "jarvis_march",
+        "regularisation_weight": 0.0001
+    },
+    "53": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "jarvis_march",
+        "regularisation_weight": 1e-05
+    },
+    "54": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithm": "jarvis_march",
+        "regularisation_weight": 1e-06
     }
 }

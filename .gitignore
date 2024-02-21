@@ -19,8 +19,7 @@ venv/
 .vscode
 
 # SLURM jobs files
-logs/
-checkpoints/
+results/
 slurm.*
 slurm_l65_gpu_template_experiment_*
 machine.file.*

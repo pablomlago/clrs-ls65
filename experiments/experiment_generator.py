@@ -19,7 +19,7 @@ conda_environment = os.environ.get('CONDA_DEFAULT_ENV')
 # Experiments folder
 experiments_folder = "./experiments"
 # Checkpoints folder
-checkpoints_folder = "./checkpoints"
+checkpoints_folder = "./results"
 # Template file that needs to be generated for each experiment
 slurm_template_file = f"{experiments_folder}/slurm_l65_gpu_template"
 # Output file
@@ -72,11 +72,16 @@ with open(experiment_file_name, "r") as experiment_file:
             slurm_output_file.write(rendered_template)
 
 # Full path to the new "logs" folder
-logs_path = Path(os.getcwd()) / 'logs'
-print(logs_path)
+results_path = Path(os.getcwd()) / 'results'
+print(results_path)
 # Check if the new directory exists, and if not, create it
-if not logs_path.exists():
-    logs_path.mkdir()
+if not results_path.exists():
+    results_path.mkdir()
+
+for experiment_id in experiments_to_run:
+    results_experiment_path = results_path / str(experiment_id)
+    if not results_experiment_path.exists():
+        results_experiment_path.mkdir()
 
 # Iterate over the experiments running them
 for experiment_id in experiments_to_run:
