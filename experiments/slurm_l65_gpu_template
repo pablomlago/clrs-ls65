@@ -12,7 +12,7 @@
 #! Name of the job:
 #SBATCH -J gpujob
 #! Which project should be charged (NB Wilkes2 projects end in '-GPU'):
-#SBATCH -A MLMI-pm797-SL2-GPU
+#SBATCH -A MLMI-{{CRSid}}-SL2-GPU
 #! How many whole nodes should be allocated?
 #SBATCH --nodes=1
 #! How many (MPI) tasks will there be in total?
@@ -28,6 +28,10 @@
 #! Uncomment this to prevent the job from being requeued (e.g. if
 #! interrupted by node failure or system downtime):
 ##SBATCH --no-requeue
+#! Name of the output file
+#SBATCH --output=logs/slurm_experiment_{{experiment_id}}.out
+#! Name of the error file
+#SBATCH --error=logs/slurm_error_experiment_{{experiment_id}}.out
 
 #! Do not change:
 #SBATCH -p ampere
@@ -59,8 +63,13 @@ mpi_tasks_per_node=$(echo "$SLURM_TASKS_PER_NODE" | sed -e  's/^\([0-9][0-9]*\).
 module purge                               # Removes all modules still loaded
 module load rhel8/default-amp              # REQUIRED - loads the basic environment
 
+# Commands for running JAX
+module avail nvidia-cuda-toolkit
+export LD_LIBRARY_PATH=~/.conda/envs/{{conda_environment}}/lib:$LD_LIBRARY_PATH
+export PATH=~/.conda/envs/{{conda_environment}}/bin:$PATH
+
 source /home/${USER}/.bashrc
-conda activate clrs_env
+conda activate {{conda_environment}}
 #! Insert additional module load commands after this line if needed:
 
 #! Full path to application executable: 
@@ -94,20 +103,20 @@ mkdir -p logs
 mkdir -p checkpoints
 mkdir -p checkpoints/{{experiment_id}}
 JOBID={{experiment_id}}
-CMD="$application $options > logs/out.$JOBID"
+CMD="$application $options > logs/out_experiment_{{experiment_id}}"
 
 echo -e "JobID: $JOBID\n======"
 echo "Time: `date`"
 echo "Running on master node: `hostname`"
 echo "Current directory: `pwd`"
 
-if [ "$SLURM_JOB_NODELIST" ]; then
-        #! Create a machine file:
-        export NODEFILE=`generate_pbs_nodefile`
-        cat $NODEFILE | uniq > machine.file.$JOBID
-        echo -e "\nNodes allocated:\n================"
-        echo `cat machine.file.$JOBID | sed -e 's/\..*$//g'`
-fi
+#!if [ "$SLURM_JOB_NODELIST" ]; then
+#!        #! Create a machine file:
+#!        export NODEFILE=`generate_pbs_nodefile`
+#!        cat $NODEFILE | uniq > machine.file.$JOBID
+#!        echo -e "\nNodes allocated:\n================"
+#!        echo `cat machine.file.$JOBID | sed -e 's/\..*$//g'`
+#!fi
 
 echo -e "\nnumtasks=$numtasks, numnodes=$numnodes, mpi_tasks_per_node=$mpi_tasks_per_node (OMP_NUM_THREADS=$OMP_NUM_THREADS)"
 
