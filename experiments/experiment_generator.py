@@ -7,7 +7,7 @@ from pathlib import Path
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = [0]
+experiments_to_run = list(range(1,55))
 ###################################################
 # No need to change anything below here
 ###################################################
@@ -18,6 +18,8 @@ CRSid = os.environ.get('USER')
 conda_environment = os.environ.get('CONDA_DEFAULT_ENV')
 # Experiments folder
 experiments_folder = "./experiments"
+# Datasets folder
+datasets_folder = "./datasets"
 # Checkpoints folder
 checkpoints_folder = "./results"
 # Template file that needs to be generated for each experiment
@@ -37,7 +39,7 @@ with open(experiment_file_name, "r") as experiment_file:
         if int(experiment_id) not in experiments_to_run:
             continue
         experiment_options = (f"--checkpoint_path {checkpoints_folder}/{experiment_id} "
-                              f"--dataset_path /tmp/CLRS30/{experiment_id} "
+                              f"--dataset_path {datasets_folder}/{experiment_id} "
                               )
         for key, value in experiment_args.items():
             if type(value) == bool:
@@ -71,9 +73,8 @@ with open(experiment_file_name, "r") as experiment_file:
         with open(f"{experiments_folder}/{slurm_output_file_name}_{experiment_id}", "w") as slurm_output_file:
             slurm_output_file.write(rendered_template)
 
-# Full path to the new "logs" folder
+# Full path to the new "results" folder
 results_path = Path(os.getcwd()) / 'results'
-print(results_path)
 # Check if the new directory exists, and if not, create it
 if not results_path.exists():
     results_path.mkdir()
@@ -82,6 +83,17 @@ for experiment_id in experiments_to_run:
     results_experiment_path = results_path / str(experiment_id)
     if not results_experiment_path.exists():
         results_experiment_path.mkdir()
+
+# Full path to the new "datasets" folder
+datasets_path = Path(os.getcwd()) / 'datasets'
+# Check if the new directory exists, and if not, create it
+if not datasets_path.exists():
+    datasets_path.mkdir()
+
+for experiment_id in experiments_to_run:
+    datasets_experiment_path = datasets_path / str(experiment_id)
+    if not datasets_experiment_path.exists():
+        datasets_experiment_path.mkdir()
 
 # Iterate over the experiments running them
 for experiment_id in experiments_to_run:
