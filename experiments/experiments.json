@@ -272,5 +272,245 @@
         "processor_type": "mpnn_l1_regularised",
         "algorithms": "jarvis_march",
         "regularisation_weight": 1e-06
+    },
+    "55": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bfs",
+        "regularisation_weight": 0.1
+    },
+    "56": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bfs",
+        "regularisation_weight": 0.01
+    },
+    "57": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bfs",
+        "regularisation_weight": 0.001
+    },
+    "58": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bfs",
+        "regularisation_weight": 0.0001
+    },
+    "59": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bfs",
+        "regularisation_weight": 1e-05
+    },
+    "60": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bfs",
+        "regularisation_weight": 1e-06
+    },
+    "61": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bellman_ford",
+        "regularisation_weight": 0.1
+    },
+    "62": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bellman_ford",
+        "regularisation_weight": 0.01
+    },
+    "63": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bellman_ford",
+        "regularisation_weight": 0.001
+    },
+    "64": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bellman_ford",
+        "regularisation_weight": 0.0001
+    },
+    "65": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bellman_ford",
+        "regularisation_weight": 1e-05
+    },
+    "66": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bellman_ford",
+        "regularisation_weight": 1e-06
+    },
+    "67": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "lcs_length",
+        "regularisation_weight": 0.1
+    },
+    "68": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "lcs_length",
+        "regularisation_weight": 0.01
+    },
+    "69": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "lcs_length",
+        "regularisation_weight": 0.001
+    },
+    "70": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "lcs_length",
+        "regularisation_weight": 0.0001
+    },
+    "71": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "lcs_length",
+        "regularisation_weight": 1e-05
+    },
+    "72": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "lcs_length",
+        "regularisation_weight": 1e-06
+    },
+    "73": {
+        "processor_type": "mpnn_l1",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.0
+    },
+    "74": {
+        "processor_type": "mpnn_l1_max",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.0
+    },
+    "75": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.1
+    },
+    "76": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.01
+    },
+    "77": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.001
+    },
+    "78": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.0001
+    },
+    "79": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 1e-05
+    },
+    "80": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 1e-06
+    },
+    "81": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.1
+    },
+    "82": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.01
+    },
+    "83": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.001
+    },
+    "84": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.0001
+    },
+    "85": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 1e-05
+    },
+    "86": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 1e-06
+    },
+    "87": {
+        "processor_type": "mpnn_l2",
+        "algorithms": "dijkstra",
+        "regularisation_weight": 0.0
+    },
+    "88": {
+        "processor_type": "mpnn_l1",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.0
+    },
+    "89": {
+        "processor_type": "mpnn_l1_max",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.0
+    },
+    "90": {
+        "processor_type": "mpnn_l2",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.0
+    },
+    "91": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.1
+    },
+    "92": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.01
+    },
+    "93": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.001
+    },
+    "94": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.0001
+    },
+    "95": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 1e-05
+    },
+    "96": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 1e-06
+    },
+    "97": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.1
+    },
+    "98": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.01
+    },
+    "99": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.001
+    },
+    "100": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 0.0001
+    },
+    "101": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 1e-05
+    },
+    "102": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "activity_selector",
+        "regularisation_weight": 1e-06
     }
 }
