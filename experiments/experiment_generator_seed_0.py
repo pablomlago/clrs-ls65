@@ -7,7 +7,7 @@ from pathlib import Path
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = list(range(55,103))
+experiments_to_run = list(range(1,103))
 ###################################################
 # No need to change anything below here
 ###################################################
@@ -19,11 +19,11 @@ conda_environment = os.environ.get('CONDA_DEFAULT_ENV')
 # Experiments folder
 experiments_folder = "./experiments"
 # Datasets folder
-datasets_folder = "./datasets"
+datasets_folder = "./datasets_0"
 # Checkpoints folder
-checkpoints_folder = "./results"
+checkpoints_folder = "./results_0"
 # Template file that needs to be generated for each experiment
-slurm_template_file = f"{experiments_folder}/slurm_l65_gpu_template"
+slurm_template_file = f"{experiments_folder}/slurm_l65_gpu_template_seed_0"
 # Output file
 slurm_output_file_name = "slurm_l65_gpu_template_experiment"
 # File containing the configurations for the different experiments
@@ -40,6 +40,8 @@ with open(experiment_file_name, "r") as experiment_file:
             continue
         experiment_options = (f"--checkpoint_path {checkpoints_folder}/{experiment_id} "
                               f"--dataset_path {datasets_folder}/{experiment_id} "
+                              f"--enforce_pred_as_input {False}"
+                              f"--seed {0}"
                               )
         for key, value in experiment_args.items():
             if type(value) == bool:
@@ -74,7 +76,7 @@ with open(experiment_file_name, "r") as experiment_file:
             slurm_output_file.write(rendered_template)
 
 # Full path to the new "results" folder
-results_path = Path(os.getcwd()) / 'results'
+results_path = Path(os.getcwd()) / 'results_0'
 # Check if the new directory exists, and if not, create it
 if not results_path.exists():
     results_path.mkdir()
@@ -85,7 +87,7 @@ for experiment_id in experiments_to_run:
         results_experiment_path.mkdir()
 
 # Full path to the new "datasets" folder
-datasets_path = Path(os.getcwd()) / 'datasets'
+datasets_path = Path(os.getcwd()) / 'datasets_0'
 # Check if the new directory exists, and if not, create it
 if not datasets_path.exists():
     datasets_path.mkdir()

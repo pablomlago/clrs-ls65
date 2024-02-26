@@ -20,6 +20,9 @@ venv/
 
 # SLURM jobs files
 results/
+datasets/
+datasets_0/
+results_0/
 slurm.*
 slurm_l65_gpu_template_experiment_*
 machine.file.*
