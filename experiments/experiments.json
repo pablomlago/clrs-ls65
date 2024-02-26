@@ -606,23 +606,17 @@
     "121": {
         "processor_type": "mpnn_l1_regularised",
         "algorithms": "bellman_ford",
-        "regularisation_weight": 5,
-        "bound_regularisation_loss": "True",
-        "max_proportion_regularisation": 2.0
+        "regularisation_weight": 5
     },
     "122": {
         "processor_type": "mpnn_l1_regularised",
         "algorithms": "bellman_ford",
-        "regularisation_weight": 10,
-        "bound_regularisation_loss": "True",
-        "max_proportion_regularisation": 2.0
+        "regularisation_weight": 10
     },
     "123": {
         "processor_type": "mpnn_l1_regularised",
         "algorithms": "bellman_ford",
-        "regularisation_weight": 20,
-        "bound_regularisation_loss": "True",
-        "max_proportion_regularisation": 2.0
+        "regularisation_weight": 20
     },
     "124": {
         "processor_type": "mpnn_l1_regularised_max",
@@ -647,23 +641,17 @@
     "128": {
         "processor_type": "mpnn_l1_regularised_max",
         "algorithms": "bellman_ford",
-        "regularisation_weight": 5,
-        "bound_regularisation_loss": "True",
-        "max_proportion_regularisation": 2.0
+        "regularisation_weight": 5
     },
     "129": {
         "processor_type": "mpnn_l1_regularised_max",
         "algorithms": "bellman_ford",
-        "regularisation_weight": 10,
-        "bound_regularisation_loss": "True",
-        "max_proportion_regularisation": 2.0
+        "regularisation_weight": 10
     },
     "130": {
         "processor_type": "mpnn_l1_regularised_max",
         "algorithms": "bellman_ford",
-        "regularisation_weight": 20,
-        "bound_regularisation_loss": "True",
-        "max_proportion_regularisation": 2.0
+        "regularisation_weight": 20
     },
     "131": {
         "processor_type": "mpnn_l1_regularised",
