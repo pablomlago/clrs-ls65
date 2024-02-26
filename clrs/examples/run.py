@@ -122,6 +122,10 @@ flags.DEFINE_boolean('freeze_processor', False,
                      'Whether to freeze the processor of the model.')
 flags.DEFINE_float('regularisation_weight', 0.0,
                    'Weight given to regularisation loss')
+flags.DEFINE_boolean('bound_regularisation_loss', False,
+                     'Whether to bound the regularisation loss to not grow too much in the early stages of training.')
+flags.DEFINE_float('max_proportion_regularisation', 0.2,
+                   'Regularisation loss cannot be higher than this proportion of the quality loss.')
 
 FLAGS = flags.FLAGS
 
@@ -411,6 +415,8 @@ def main(unused_argv):
       hint_repred_mode=FLAGS.hint_repred_mode,
       nb_msg_passing_steps=FLAGS.nb_msg_passing_steps,
       regularisation_weight=FLAGS.regularisation_weight,
+      bound_regularisation_loss=FLAGS.bound_regularisation_loss,
+      max_proportion_regularisation=FLAGS.max_proportion_regularisation,
       )
 
   eval_model = clrs.models.BaselineModel(

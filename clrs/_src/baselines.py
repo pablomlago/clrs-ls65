@@ -156,6 +156,8 @@ class BaselineModel(model.Model):
       name: str = 'base_model',
       nb_msg_passing_steps: int = 1,
       regularisation_weight: float = 0.0,
+      bound_regularisation_loss: bool = False,
+      max_proportion_regularisation: float = 0.0,
   ):
     """Constructor for BaselineModel.
 
@@ -225,6 +227,8 @@ class BaselineModel(model.Model):
 
     self.nb_msg_passing_steps = nb_msg_passing_steps
     self.regularisation_weight = regularisation_weight
+    self.bound_regularisation_loss = bound_regularisation_loss
+    self.max_proportion_regularisation = max_proportion_regularisation
 
     self.nb_dims = []
     if isinstance(dummy_trajectory, _Feedback):
@@ -427,6 +431,9 @@ class BaselineModel(model.Model):
 
     # TODO: Remove once validated, as it impacts performance
     regularisation_loss = self.regularisation_weight * mse_loss
+    # Bound regularisation loss if required
+    if self.bound_regularisation_loss:
+      regularisation_loss = jnp.max(regularisation_loss, total_loss * self.max_proportion_regularisation)
     jax.debug.print("[DEBUG] Regularised loss: {reg_loss}, Regularisation weight: {reg_weight}, MSE loss: {mse_loss}, Quality loss: {quality_loss}", 
                     reg_loss=regularisation_loss, 
                     reg_weight=self.regularisation_weight, 
