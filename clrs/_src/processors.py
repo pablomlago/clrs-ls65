@@ -23,6 +23,7 @@ import haiku as hk
 import jax
 import jax.numpy as jnp
 from jax import random
+from jax import lax
 import numpy as np
 
 from clrs._src.utils import sample_msgs
@@ -31,6 +32,56 @@ _Array = chex.Array
 _Fn = Callable[..., Any]
 BIG_NUMBER = 1e6
 PROCESSOR_TAG = 'clrs_processor'
+
+class TropicalLinear(hk.Module):
+  """Linear module."""
+
+  def __init__(
+      self,
+      output_size: int,
+      w_init: Optional[hk.initializers.Initializer] = None,
+      name: Optional[str] = None,
+  ):
+    """Constructs a Tropical Linear module.
+
+    Args:
+      output_size: Output dimensionality.
+      w_init: Optional initializer for weights. By default, uses random values
+        from truncated normal, with stddev ``1 / sqrt(fan_in)``. See
+        https://arxiv.org/abs/1502.03167v3.
+      name: Name of the module.
+    """
+    super().__init__(name=name)
+    self.input_size = None
+    self.output_size = output_size
+    self.w_init = w_init
+
+  def __call__(
+      self,
+      inputs: jax.Array,
+      *,
+      precision: Optional[lax.Precision] = None,
+  ) -> jax.Array:
+    """Computes a tropical linear transform of the input."""
+    if not inputs.shape:
+      raise ValueError("Input must not be scalar.")
+
+    input_size = self.input_size = inputs.shape[-1]
+    output_size = self.output_size
+    dtype = inputs.dtype
+
+    w_init = self.w_init
+    if w_init is None:
+      stddev = 1. / np.sqrt(self.input_size)
+      w_init = hk.initializers.TruncatedNormal(stddev=stddev)
+    w = hk.get_parameter("w", [input_size, output_size], dtype, init=w_init)
+
+    inputs_expanded = inputs[:, :, None]
+    w_expanded = w[None, :, :] 
+
+    out = jax.scipy.special.logsumexp(inputs_expanded  + w_expanded, axis=1) 
+
+    return out
 
 
 class Processor(hk.Module):
@@ -1195,6 +1246,77 @@ class PGN_L2(Processor):
     ret = jnp.maximum(hidden, msgs)
 
     return ret, None, mse_loss # pytype: disable=bad-return-type  # numpy-scalars
+  
+class PGN_L3(Processor):
+  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
+
+  def __init__(
+      self,
+      out_size: int,
+      mid_size: Optional[int] = None,
+      mid_act: Optional[_Fn] = None,
+      activation: Optional[_Fn] = None,
+      reduction: _Fn = jnp.sum,
+      msgs_mlp_sizes: Optional[List[int]] = None,
+      use_ln: bool = False,
+      use_triplets: bool = False,
+      nb_triplet_fts: int = 8,
+      gated: bool = False,
+      name: str = 'mpnn_l2',
+  ):
+    super().__init__(name=name)
+    if mid_size is None:
+      self.mid_size = out_size
+    else:
+      self.mid_size = mid_size
+    self.out_size = out_size
+    self.mid_act = mid_act
+    # Same as in Asynchronous Algorithmic Alignment with Cocycles
+    self.activation = jax.nn.relu
+    self.reduction = jnp.max
+    self._msgs_mlp_sizes = msgs_mlp_sizes
+    self.use_ln = use_ln
+    self.use_triplets = use_triplets
+    self.nb_triplet_fts = nb_triplet_fts
+    self.gated = gated
+
+  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
+      self,
+      node_fts: _Array,
+      edge_fts: _Array,
+      graph_fts: _Array,
+      adj_mat: _Array,
+      hidden: _Array,
+      **unused_kwargs,
+  ) -> _Array:
+    """MPNN inference step."""
+
+    b, n, _ = node_fts.shape
+    assert edge_fts.shape[:-1] == (b, n, n)
+    assert graph_fts.shape[:-1] == (b,)
+    assert adj_mat.shape == (b, n, n)
+
+    m_1 = TropicalLinear(self.mid_size)
+    m_2 = TropicalLinear(self.mid_size)
+
+    msg_1 = m_1(hidden)
+    msg_2 = m_2(hidden)
+
+    # The message generator function is linear (psi)
+    msgs = (
+        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2)
+    )
+  
+    # The reduction is a max
+    maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
+                         msgs,
+                         -BIG_NUMBER)
+    msgs = jnp.max(maxarg, axis=1)
+
+    # The node update is linear
+    ret = jnp.maximum(hidden, msgs)
+
+    return ret, None, jnp.array(0.) # pytype: disable=bad-return-type  # numpy-scalars
   
 class DeepSets(PGN):
   """Deep Sets (Zaheer et al., NeurIPS 2017)."""
