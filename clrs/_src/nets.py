@@ -32,6 +32,7 @@ import haiku as hk
 import jax
 import jax.numpy as jnp
 
+from lsr.noise_injection import inject_noise, load_noise_vectors, NoiseInjectionStrategy
 
 _Array = chex.Array
 _DataPoint = probing.DataPoint
@@ -50,6 +51,7 @@ class _MessagePassingScanState:
   output_preds: chex.Array
   hiddens: chex.Array
   lstm_state: Optional[hk.LSTMState]
+  features: Dict[str, chex.Array]
   mse_loss: Optional[chex.Array]
 
 
@@ -86,6 +88,8 @@ class Net(hk.Module):
       hint_repred_mode='soft',
       nb_dims=None,
       nb_msg_passing_steps=1,
+      noise_mode: str = 'Noisefree',
+      decay: float = 1.0,
       name: str = 'net',
   ):
     """Constructs a `Net`."""
@@ -103,6 +107,9 @@ class Net(hk.Module):
     self.use_lstm = use_lstm
     self.encoder_init = encoder_init
     self.nb_msg_passing_steps = nb_msg_passing_steps
+    self.decay = decay
+    self.noise_mode = NoiseInjectionStrategy[noise_mode]
+    self.noise_vectors = load_noise_vectors(self.noise_mode)
 
   def _msg_passing_step(self,
                         mp_state: _MessagePassingScanState,
@@ -118,7 +125,8 @@ class Net(hk.Module):
                         encs: Dict[str, List[hk.Module]],
                         decs: Dict[str, Tuple[hk.Module]],
                         return_hints: bool,
-                        return_all_outputs: bool
+                        return_all_outputs: bool,
+                        return_all_features: bool
                         ):
     if self.decode_hints and not first_step:
       assert self._hint_repred_mode in ['soft', 'hard', 'hard_on_eval']
@@ -163,10 +171,10 @@ class Net(hk.Module):
             probing.DataPoint(
                 name=hint.name, location=loc, type_=typ, data=hint_data))
 
-    hiddens, output_preds_cand, hint_preds, lstm_state, mse_loss = self._one_step_pred(
+    hiddens, output_preds_cand, hint_preds, lstm_state, features, mse_loss = self._one_step_pred(
         inputs, cur_hint, mp_state.hiddens,
         batch_size, nb_nodes, mp_state.lstm_state,
-        spec, encs, decs, repred)
+        spec, encs, decs, repred, i, lengths)
 
     if first_step:
       output_preds = output_preds_cand
@@ -186,14 +194,14 @@ class Net(hk.Module):
         output_preds=output_preds,
         hiddens=hiddens,
         lstm_state=lstm_state,
+        features=None,
         mse_loss=aggregated_mse_loss)
-    # It is not needed to store the mse_loss in the accum_mp_state, as it is aggregated in each step
-    # In case it was needed, it can be done by setting mse_loss=mse_loss in accum_mp_state
     # Save memory by not stacking unnecessary fields
     accum_mp_state = _MessagePassingScanState(  # pytype: disable=wrong-arg-types  # numpy-scalars
         hint_preds=hint_preds if return_hints else None,
         output_preds=output_preds if return_all_outputs else None,
-        hiddens=None, lstm_state=None, mse_loss=None)
+        hiddens=None, lstm_state=None,
+        features=features if True else None, mse_loss=None)
 
     # Complying to jax.scan, the first returned value is the state we carry over
     # the second value is the output that will be stacked over steps.
@@ -202,7 +210,8 @@ class Net(hk.Module):
   def __call__(self, features_list: List[_Features], repred: bool,
                algorithm_index: int,
                return_hints: bool,
-               return_all_outputs: bool):
+               return_all_outputs: bool,
+               return_all_features: bool):
     """Process one batch of data.
 
     Args:
@@ -270,7 +279,7 @@ class Net(hk.Module):
 
       mp_state = _MessagePassingScanState(  # pytype: disable=wrong-arg-types  # numpy-scalars
           hint_preds=None, output_preds=None,
-          hiddens=hiddens, lstm_state=lstm_state, mse_loss=None)
+          hiddens=hiddens, lstm_state=lstm_state, features=None, mse_loss=None)
 
       # Do the first step outside of the scan because it has a different
       # computation graph.
@@ -286,6 +295,7 @@ class Net(hk.Module):
           decs=self.decoders[algorithm_index],
           return_hints=return_hints,
           return_all_outputs=return_all_outputs,
+          return_all_features=return_all_features
           )
       mp_state, lean_mp_state = self._msg_passing_step(
           mp_state,
@@ -324,8 +334,9 @@ class Net(hk.Module):
     else:
       output_preds = output_mp_state.output_preds
     hint_preds = invert(accum_mp_state.hint_preds)
+    features = invert(accum_mp_state.features)
 
-    return output_preds, hint_preds, output_mp_state.mse_loss
+    return output_preds, hint_preds, features, output_mp_state.mse_loss
 
   def _construct_encoders_decoders(self):
     """Constructs encoders and decoders, separate for each algorithm."""
@@ -374,6 +385,8 @@ class Net(hk.Module):
       encs: Dict[str, List[hk.Module]],
       decs: Dict[str, Tuple[hk.Module]],
       repred: bool,
+      i: int,
+      lengths: _Array
   ):
     """Generates one-step predictions."""
 
@@ -404,7 +417,9 @@ class Net(hk.Module):
           raise Exception(f'Failed to process {dp}') from e
 
     # PROCESS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    nxt_hidden = hidden
+    nxt_hidden = hidden * self.decay
+    # nxt_hidden = jnp.mean(hidden, axis=-1, keepdims=True) + \
+    #              (hidden - jnp.mean(hidden, axis=-1, keepdims=True)) * self.decay
     for _ in range(self.nb_msg_passing_steps):
       nxt_hidden, nxt_edge, mse_loss = self.processor(
           node_fts,
@@ -415,6 +430,8 @@ class Net(hk.Module):
           batch_size=batch_size,
           nb_nodes=nb_nodes,
       )
+    nxt_hidden = inject_noise(nxt_hidden, self.noise_vectors, self.noise_mode, hk.next_rng_key(), i,
+                              lengths.reshape(-1,1).repeat(repeats=nxt_hidden.shape[1], axis=1))
 
     if not repred:      # dropout only on training
       nxt_hidden = hk.dropout(hk.next_rng_key(), self._dropout_prob, nxt_hidden)
@@ -445,8 +462,11 @@ class Net(hk.Module):
         inf_bias_edge=self.processor.inf_bias_edge,
         repred=repred,
     )
-
-    return nxt_hidden, output_preds, hint_preds, nxt_lstm_state, mse_loss
+    # features = dict(graph=graph_fts)
+    # features = dict(node=nxt_hidden)
+    # features = dict(graph=jnp.mean(nxt_hidden, axis=-2))
+    features = {}
+    return nxt_hidden, output_preds, hint_preds, nxt_lstm_state, features, mse_loss
 
 
 class NetChunked(Net):
@@ -546,7 +566,7 @@ class NetChunked(Net):
           mp_state.lstm_state)
     else:
       lstm_state = None
-    hiddens, output_preds, hint_preds, lstm_state = self._one_step_pred(
+    hiddens, output_preds, hint_preds, lstm_state, _ = self._one_step_pred(
         inputs, hints_for_pred, hiddens,
         batch_size, nb_nodes, lstm_state,
         spec, encs, decs, repred)

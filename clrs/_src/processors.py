@@ -453,6 +453,7 @@ class PGN(Processor):
       use_triplets: bool = False,
       nb_triplet_fts: int = 8,
       gated: bool = False,
+      force_linear: bool = False,
       name: str = 'mpnn_aggr',
   ):
     super().__init__(name=name)
@@ -468,6 +469,7 @@ class PGN(Processor):
     self.use_ln = use_ln
     self.use_triplets = use_triplets
     self.nb_triplet_fts = nb_triplet_fts
+    self._force_linear = force_linear
     self.gated = gated
 
   def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
@@ -517,7 +519,7 @@ class PGN(Processor):
 
     tri_msgs = None
 
-    if self.use_triplets:
+    if self.use_triplets and not self._force_linear:
       # Triplet messages, as done by Dudzik and Velickovic (2022)
       triplets = get_triplet_msgs(z, edge_fts, graph_fts, self.nb_triplet_fts)
 
@@ -537,10 +539,13 @@ class PGN(Processor):
     if self._msgs_mlp_sizes is not None:
       # self._msgs_mlp_sizes is a tuple, e.g. [64, 128, 16], with the output dimesions
       # for a series of Linear layers, followed by their respective activations
-      msgs = hk.nets.MLP(self._msgs_mlp_sizes)(jax.nn.relu(msgs))
+      if not self._force_linear:
+        msgs = hk.nets.MLP(self._msgs_mlp_sizes)(jax.nn.relu(msgs))
+      else:
+        msgs = hk.nets.MLP(self._msgs_mlp_sizes, activation=lambda x: x)(msgs)
 
     # Additional activation
-    if self.mid_act is not None:
+    if self.mid_act is not None and not self._force_linear:
       msgs = self.mid_act(msgs)
 
     # Computation of h_{i}^{(t)}=f_{r}(z_{i}^{(t)}, m_{i}^{(t)})
@@ -550,7 +555,7 @@ class PGN(Processor):
       # h_{i}^{(t)} = Linear(z_{i}^{(t)}) + Linear(m_{i}^{(t)})
       ret = h_1 + h_2
 
-      if self.activation is not None:
+      if self.activation is not None and not self._force_linear:
         ret = self.activation(ret)
 
       # Include LayerNorm if needed
@@ -631,6 +636,13 @@ class PGN(Processor):
                          msgs,
                          -BIG_NUMBER)
       msgs = jnp.max(maxarg, axis=1)
+    elif self.reduction == jax.nn.softmax:
+      maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
+                         msgs,
+                         -BIG_NUMBER)
+      inv_temp = 1  # hk.get_parameter("temp", (), init=jnp.ones)
+      soft_coeffs = jax.nn.softmax(inv_temp * maxarg, axis=1)
+      msgs = jnp.sum(msgs * soft_coeffs, axis=1)
     else:
       msgs = self.reduction(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
 
@@ -1318,6 +1330,34 @@ class PGN_L3(Processor):
 
     return ret, None, jnp.array(0.) # pytype: disable=bad-return-type  # numpy-scalars
   
+class LinearPGN(PGN):
+  """PGN Network without nonlinearities"""
+
+  def __init__(
+      self,
+      out_size: int,
+      mid_size: Optional[int] = None,
+      reduction: _Fn = jnp.max,
+      msgs_mlp_sizes: Optional[List[int]] = None,
+      use_ln: bool = False,
+      use_triplets: bool = False,
+      nb_triplet_fts: int = 8,
+      gated: bool = False,
+      name: str = 'linear_pgn',
+  ):
+    super().__init__(out_size=out_size,
+                     mid_size=mid_size,
+                     mid_act=None,
+                     activation=None,
+                     reduction=reduction,
+                     msgs_mlp_sizes=msgs_mlp_sizes,
+                     use_ln=use_ln,
+                     use_triplets=use_triplets,
+                     nb_triplet_fts=nb_triplet_fts,
+                     gated=gated,
+                     force_linear=True,
+                     name=name)
+
 class DeepSets(PGN):
   """Deep Sets (Zaheer et al., NeurIPS 2017)."""
 
@@ -1601,7 +1641,8 @@ ProcessorFactory = Callable[[int], Processor]
 def get_processor_factory(kind: str,
                           use_ln: bool,
                           nb_triplet_fts: int,
-                          nb_heads: Optional[int] = None) -> ProcessorFactory:
+                          nb_heads: Optional[int] = None,
+                          reduction: Optional[_Fn] = jnp.max) -> ProcessorFactory:
   """Returns a processor factory.
 
   Args:
@@ -1673,7 +1714,17 @@ def get_processor_factory(kind: str,
           use_ln=use_ln,
           use_triplets=False,
           nb_triplet_fts=0,
+          reduction=reduction
       )
+    elif kind == 'pgnlin':
+      processor = LinearPGN(
+        out_size=out_size,
+        msgs_mlp_sizes=[out_size, out_size],
+        use_ln=use_ln,
+        use_triplets=False,
+        nb_triplet_fts=0,
+        reduction=reduction
+        )
     elif kind == 'pgn_mask':
       processor = PGNMask(
           out_size=out_size,
@@ -1681,6 +1732,7 @@ def get_processor_factory(kind: str,
           use_ln=use_ln,
           use_triplets=False,
           nb_triplet_fts=0,
+          reduction=reduction
       )
     elif kind == 'triplet_mpnn':
       processor = MPNN(
@@ -1689,6 +1741,7 @@ def get_processor_factory(kind: str,
           use_ln=use_ln,
           use_triplets=True,
           nb_triplet_fts=nb_triplet_fts,
+          reduction=reduction
       )
     elif kind == 'triplet_pgn':
       processor = PGN(
@@ -1697,6 +1750,7 @@ def get_processor_factory(kind: str,
           use_ln=use_ln,
           use_triplets=True,
           nb_triplet_fts=nb_triplet_fts,
+          reduction=reduction
       )
     elif kind == 'triplet_pgn_mask':
       processor = PGNMask(
@@ -1759,6 +1813,61 @@ def get_processor_factory(kind: str,
           use_triplets=True,
           nb_triplet_fts=nb_triplet_fts,
           gated=True,
+          reduction=reduction
+      )
+    elif kind == 'mpnn_l1':
+      processor = MPNN_L1(
+          out_size=out_size,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+      )
+    elif kind == 'mpnn_l1_max':
+      processor = MPNN_L1_Max(
+          out_size=out_size,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+      )
+    elif kind == 'mpnn_l1_residual':
+      processor = MPNN_L1_Residual(
+          out_size=out_size,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+      )
+    elif kind == 'mpnn_l1_regularised':
+      processor = MPNN_L1_Regularised(
+          out_size=out_size,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+      )
+    elif kind == 'mpnn_l1_regularised_max':
+      processor = MPNN_L1_Regularised_Max(
+          out_size=out_size,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+      )
+    elif kind == 'mpnn_l2':
+      processor = MPNN_L2(
+          out_size=out_size,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
       )
     elif kind == 'mpnn_l1':
       processor = MPNN_L1(

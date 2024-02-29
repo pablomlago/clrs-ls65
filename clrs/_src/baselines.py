@@ -155,6 +155,8 @@ class BaselineModel(model.Model):
       hint_repred_mode: str = 'soft',
       name: str = 'base_model',
       nb_msg_passing_steps: int = 1,
+      noise_mode: str = 'Noisefree',
+      decay: float = 1.0,
       regularisation_weight: float = 0.0,
       bound_regularisation_loss: bool = False,
       max_proportion_regularisation: float = 0.0,
@@ -250,6 +252,8 @@ class BaselineModel(model.Model):
     self._device_params = None
     self._device_opt_state = None
     self.opt_state_skeleton = None
+    self.noise_mode = noise_mode
+    self.decay = decay
 
   def _create_net_fns(self, hidden_dim, encode_hints, processor_factory,
                       use_lstm, encoder_init, dropout_prob,
@@ -259,7 +263,8 @@ class BaselineModel(model.Model):
                       processor_factory, use_lstm, encoder_init,
                       dropout_prob, hint_teacher_forcing,
                       hint_repred_mode,
-                      self.nb_dims, self.nb_msg_passing_steps)(*args, **kwargs)
+                      self.nb_dims, self.nb_msg_passing_steps,
+                      self.noise_mode, self.decay)(*args, **kwargs)
 
     self.net_fn = hk.transform(_use_net)
     pmap_args = dict(axis_name='batch', devices=jax.local_devices())
@@ -287,7 +292,8 @@ class BaselineModel(model.Model):
     self.params = self.net_fn.init(jax.random.PRNGKey(seed), features, True,  # pytype: disable=wrong-arg-types  # jax-ndarray
                                    algorithm_index=-1,
                                    return_hints=False,
-                                   return_all_outputs=False)
+                                   return_all_outputs=False,
+                                   return_all_features=False)
     self.opt_state = self.opt.init(self.params)
     # We will use the optimizer state skeleton for traversal when we
     # want to avoid updating the state of params of untrained algorithms.
@@ -329,19 +335,20 @@ class BaselineModel(model.Model):
 
   def _predict(self, params, rng_key: hk.PRNGSequence, features: _Features,
                algorithm_index: int, return_hints: bool,
-               return_all_outputs: bool):
-    outs, hint_preds, _ = self.net_fn.apply(
+               return_all_outputs: bool, return_all_features: bool):
+    outs, hint_preds, trajs, _ = self.net_fn.apply(
         params, rng_key, [features],
         repred=True, algorithm_index=algorithm_index,
         return_hints=return_hints,
-        return_all_outputs=return_all_outputs)
+        return_all_outputs=return_all_outputs,
+        return_all_features=return_all_features)
     outs = decoders.postprocess(self._spec[algorithm_index],
                                 outs,
                                 sinkhorn_temperature=0.1,
                                 sinkhorn_steps=50,
                                 hard=True,
                                 )
-    return outs, hint_preds
+    return outs, hint_preds, trajs
 
   def compute_grad(
       self,
@@ -383,7 +390,8 @@ class BaselineModel(model.Model):
   def predict(self, rng_key: hk.PRNGSequence, features: _Features,
               algorithm_index: Optional[int] = None,
               return_hints: bool = False,
-              return_all_outputs: bool = False):
+              return_all_outputs: bool = False,
+              return_all_features: bool = False):
     """Model inference step."""
     if algorithm_index is None:
       assert len(self._spec) == 1
@@ -396,16 +404,18 @@ class BaselineModel(model.Model):
             self._device_params, rng_keys, features,
             algorithm_index,
             return_hints,
-            return_all_outputs))
+            return_all_outputs,
+            return_all_features))
 
   def _loss(self, params, rng_key, feedback, algorithm_index):
     """Calculates model loss f(feedback; params)."""
-    output_preds, hint_preds, mse_loss = self.net_fn.apply(
+    output_preds, hint_preds, _, mse_loss = self.net_fn.apply(
         params, rng_key, [feedback.features],
         repred=False,
         algorithm_index=algorithm_index,
         return_hints=True,
-        return_all_outputs=False)
+        return_all_outputs=False,
+        return_all_features=False)
 
     nb_nodes = _nb_nodes(feedback, is_chunked=False)
     lengths = feedback.features.lengths
@@ -531,7 +541,8 @@ class BaselineModelChunked(BaselineModel):
           self._spec, hidden_dim, encode_hints, self.decode_hints,
           processor_factory, use_lstm, encoder_init, dropout_prob,
           hint_teacher_forcing, hint_repred_mode,
-          self.nb_dims, self.nb_msg_passing_steps)(*args, **kwargs)
+          self.nb_dims, self.nb_msg_passing_steps,
+          self.noise_mode, self.decay)(*args, **kwargs)
 
     self.net_fn = hk.transform(_use_net)
     pmap_args = dict(axis_name='batch', devices=jax.local_devices())
@@ -586,7 +597,7 @@ class BaselineModelChunked(BaselineModel):
     raise NotImplementedError
 
   def _loss(self, params, rng_key, feedback, mp_state, algorithm_index):
-    (output_preds, hint_preds), mp_state = self.net_fn.apply(
+    (output_preds, hint_preds), mp_state, _trajs = self.net_fn.apply(
         params, rng_key, [feedback.features],
         [mp_state],
         repred=False,
