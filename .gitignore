@@ -6,6 +6,10 @@ build/
 dist/
 venv/
 
+# Trajectory files
+*.npz
+*.pkl
+
 # Mac OS
 .DS_Store
 

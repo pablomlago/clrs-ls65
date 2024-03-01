@@ -39,7 +39,7 @@ def project_on_k(v: jnp.ndarray, dirs: jnp.ndarray):
 @jax.jit
 def select_optimal_direction_from_reference_directions(vector: jnp.ndarray,
                                                        refs: jnp.ndarray,
-                                                       rng: jax.random.PRNGKeyArray,
+                                                       rng,
                                                        idx: int):
   mus = refs['mus']
   evs = refs['evs']
@@ -66,7 +66,7 @@ def select_optimal_direction_from_reference_directions(vector: jnp.ndarray,
 def inject_noise(vector: jnp.ndarray,
                  refs: jnp.ndarray,
                  mode: NoiseInjectionStrategy,
-                 rng: jax.random.PRNGKeyArray,
+                 rng,
                  idx: int,
                  length: jnp.ndarray):
 
@@ -133,4 +133,4 @@ def main(path, split):
 
 
 if __name__ == '__main__':
-  main(path='trajectories/random_johnson_512.npz', split=512)
+  main(path='trajs.npz', split=512)

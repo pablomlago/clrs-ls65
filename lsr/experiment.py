@@ -51,7 +51,7 @@ def plot_heatmap_trajwise_old(data, name):
 
   fig.suptitle(f"Trajectory-wise PCA components heatmap")
   fig.tight_layout()
-  fig.savefig(f"plots/{name}_heatmap.png", dpi=300)
+  fig.savefig(f"{name}_heatmap.png", dpi=300)
 
 
 def plot_heatmap_trajwise(data, name):
@@ -72,7 +72,7 @@ def plot_heatmap_trajwise(data, name):
 
   fig.suptitle(f"Trajectory-wise PCA components heatmap")
   fig.tight_layout()
-  fig.savefig(f"plots/{name}_heatmap.png", dpi=300)
+  fig.savefig(f"{name}_heatmap.png", dpi=300)
 
 def plot_trajwise(data, score, name, prefix = 'default'):
   samples, mp_steps, dim = data.shape
@@ -93,7 +93,7 @@ def plot_trajwise(data, score, name, prefix = 'default'):
   fig.suptitle(f"Trajectory-wise PCA (shape = samples, mp_steps*dim)\n "
                f"{get_pca_evr(trajwise_pca, 3):.2f}% explained")
   fig.tight_layout()
-  fig.savefig(f"plots/{name}/{prefix}_trajwise.png", dpi=300)
+  fig.savefig(f"{prefix}_trajwise.png", dpi=300)
 
 
 def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndarray, name: str, prefix = 'default'):
@@ -136,7 +136,7 @@ def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndar
                f"{get_pca_evr(pca, 3):.2f}% explained")
 
   fig.tight_layout()
-  fig.savefig(f"plots/{name}/{prefix}_stepwise_global.png", dpi=300)
+  fig.savefig(f"{prefix}_stepwise_global.png", dpi=300)
 
 
 def plot_stepwise_local(data, paths_drawn, sample_len, name, prefix='default'):
@@ -163,7 +163,7 @@ def plot_stepwise_local(data, paths_drawn, sample_len, name, prefix='default'):
               **common_plot_args)
 
   fig.tight_layout()
-  fig.savefig(f"plots_final/{name}/{prefix}_stepwise_local.png", dpi=300)
+  fig.savefig(f"{prefix}_stepwise_local.png", dpi=300)
 
 
 def run_experiment(name: str, path: str, paths_drawn=100):
@@ -180,9 +180,9 @@ def run_experiment(name: str, path: str, paths_drawn=100):
 
   # print([np.sum(true_lengths == i) for i in range(16)])
 
-  data = data[true_lengths == 9, 0:9, :]
-  score = score[true_lengths == 9]
-  true_lengths = true_lengths[true_lengths == 9]
+  data = data[true_lengths == 9-1, :9-1, :]
+  score = score[true_lengths == 9-1]
+  true_lengths = true_lengths[true_lengths == 9-1]
 
   # means = np.mean(data, axis=0)
   # mean_adjusted_data = data - means[np.newaxis, ...]
@@ -278,7 +278,7 @@ def traj_step(data: np.ndarray,
   ax[1].set_title(f"Step-wise PCA, evr={get_pca_evr(pca, 3):.2f}%")
   # fig.suptitle(f"{name}, accuracy={acc*100:.2f}%")
   fig.tight_layout()
-  fig.savefig(f"plots_final/{name}_ts_2d.png", dpi=300)
+  fig.savefig(f"{name}_ts_2d.png", dpi=300)
 
   ax3d[1].set_title(f"Step-wise PCA, evr={get_pca_evr(pca, 3):.2f}%")
   # fig3d.suptitle(f"{name}, accuracy={acc*100:.2f}%")

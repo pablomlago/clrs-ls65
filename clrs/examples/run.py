@@ -297,6 +297,11 @@ def fill(trajs):
       x.append(x[-1])  # Duplicate last trajectory to align lengths
   return trajs
 
+def fill_trajectories(trajs):
+  n = max([x.shape[0] for x in trajs])
+  trajs = [jax.numpy.concatenate([x, jax.numpy.repeat(x[-1:, ...], n - x.shape[0], axis=0)], axis=0) if n - x.shape[0] > 0 else x for x in trajs]
+  return trajs
+
 def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   """Dump trajectories of datapoints"""
   processed_samples = 0
@@ -321,7 +326,11 @@ def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
     processed_samples += batch_size
   preds = _concat(preds, axis=0)
   outputs = _concat(outputs, axis=0)
-  # trajs = _concat(fill(trajs), axis=0)
+  trajs = _concat(fill_trajectories(trajs), axis=1)
+  # Reduce over the node dimension
+  trajs = jax.numpy.max(trajs, axis=2)
+  # The dimensions are T x N x D
+  trajs = trajs.transpose(1,0,2)
   hints = _concat(fill(hints), axis=0)
   inputs = _concat(inputs, axis=0)
   lengths = jax.numpy.array(lengths).flatten().astype(int)
@@ -329,7 +338,7 @@ def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   # graph_fts = jax.numpy.asarray([d['node'] for d in trajs]).transpose(1, 2, 0, 3)
   # graph_fts = jax.numpy.asarray([d['graph'] for d in trajs]).transpose(1, 0, 2)
   graph_fts = np.zeros_like(lengths)
-  return lengths, graph_fts, out, inputs, preds, hints
+  return lengths, trajs, out, inputs, preds, hints
 
 
 def create_samplers(rng, train_lengths: List[int]):
@@ -531,7 +540,7 @@ def main(unused_argv):
       )
 
   if FLAGS.test:
-    with open("D:\\tmp\\CLRS30_v1.0.0\\best.pkl", 'rb') as file:
+    with open(f"{FLAGS.checkpoint_path}/best.pkl", 'rb') as file:
       import pickle
       best = pickle.load(file)
       eval_model.params = best['params']

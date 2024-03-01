@@ -201,7 +201,7 @@ class Net(hk.Module):
         hint_preds=hint_preds if return_hints else None,
         output_preds=output_preds if return_all_outputs else None,
         hiddens=None, lstm_state=None,
-        features=features if True else None, mse_loss=None)
+        features=hiddens if True else None, mse_loss=None)
 
     # Complying to jax.scan, the first returned value is the state we carry over
     # the second value is the output that will be stacked over steps.
@@ -334,9 +334,9 @@ class Net(hk.Module):
     else:
       output_preds = output_mp_state.output_preds
     hint_preds = invert(accum_mp_state.hint_preds)
-    features = invert(accum_mp_state.features)
+    # features = invert(accum_mp_state.features)
 
-    return output_preds, hint_preds, features, output_mp_state.mse_loss
+    return output_preds, hint_preds, accum_mp_state.features, output_mp_state.mse_loss
 
   def _construct_encoders_decoders(self):
     """Constructs encoders and decoders, separate for each algorithm."""
