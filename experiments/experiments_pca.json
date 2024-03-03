@@ -1,0 +1,29 @@
+{
+    "0": {
+        "processor_type": "mpnn_l1",
+        "algorithms": "bellman_ford"
+    },
+    "1": {
+        "processor_type": "mpnn_l1_max",
+        "algorithms": "bellman_ford"
+    },
+    "2": {
+        "processor_type": "mpnn_l2",
+        "algorithms": "bellman_ford"
+    },
+    "3": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "bellman_ford",
+        "regularisation_weight": 1.0
+    },
+    "4": {
+        "processor_type": "mpnn_l1_regularised",
+        "algorithms": "bellman_ford",
+        "regularisation_weight": 10.0
+    },
+    "5": {
+        "processor_type": "mpnn_l1_regularised_max",
+        "algorithms": "bellman_ford",
+        "regularisation_weight": 1.0
+    }
+}
