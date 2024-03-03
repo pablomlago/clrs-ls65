@@ -420,6 +420,9 @@ class Net(hk.Module):
     nxt_hidden = hidden * self.decay
     # nxt_hidden = jnp.mean(hidden, axis=-1, keepdims=True) + \
     #              (hidden - jnp.mean(hidden, axis=-1, keepdims=True)) * self.decay
+
+    # Acummulate mse_losses
+    aggregated_mse_loss = None
     for _ in range(self.nb_msg_passing_steps):
       nxt_hidden, nxt_edge, mse_loss = self.processor(
           node_fts,
@@ -430,6 +433,7 @@ class Net(hk.Module):
           batch_size=batch_size,
           nb_nodes=nb_nodes,
       )
+      aggregated_mse_loss = aggregated_mse_loss + mse_loss if aggregated_mse_loss is not None else mse_loss
     nxt_hidden = inject_noise(nxt_hidden, self.noise_vectors, self.noise_mode, hk.next_rng_key(), i,
                               lengths.reshape(-1,1).repeat(repeats=nxt_hidden.shape[1], axis=1))
 
@@ -466,7 +470,7 @@ class Net(hk.Module):
     # features = dict(node=nxt_hidden)
     # features = dict(graph=jnp.mean(nxt_hidden, axis=-2))
     features = {}
-    return nxt_hidden, output_preds, hint_preds, nxt_lstm_state, features, mse_loss
+    return nxt_hidden, output_preds, hint_preds, nxt_lstm_state, features, aggregated_mse_loss
 
 
 class NetChunked(Net):

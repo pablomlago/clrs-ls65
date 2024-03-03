@@ -111,7 +111,7 @@ flags.DEFINE_enum('processor_type', 'triplet_mpnn',
                    'gpgn', 'gpgn_mask', 'gmpnn',
                    'triplet_gpgn', 'triplet_gpgn_mask', 'triplet_gmpnn', 
                    'mpnn_l1', 'mpnn_l1_max', 'mpnn_l1_residual', 'mpnn_l1_regularised', 
-                   'mpnn_l1_regularised_max', 'mpnn_l2'],
+                   'mpnn_l1_regularised_max', 'mpnn_l2', 'mpnn_l3'],
                   'Processor type to use as the network P.')
 
 flags.DEFINE_string('checkpoint_path', '/tmp/CLRS30_v1.0.0',
@@ -120,6 +120,9 @@ flags.DEFINE_string('dataset_path', '/tmp/CLRS30_v1.0.0',
                     'Path in which dataset is stored.')
 flags.DEFINE_boolean('freeze_processor', False,
                      'Whether to freeze the processor of the model.')
+####
+# Latent representation flags
+####
 flags.DEFINE_boolean('test', False,
                      'Skip training and restore best model')
 flags.DEFINE_string('sample_strat', None,
@@ -127,17 +130,24 @@ flags.DEFINE_string('sample_strat', None,
 flags.DEFINE_enum('noise_injection_strategy', 'Noisefree',
                   ['Noisefree', 'Uniform', 'Directional', 'Project', 'Discard', 'Corrupt'],
                   'Type of destructive noise to apply during message passing.')
-
 flags.DEFINE_float('decay', 1.0,
                      'Perform exponential decay inside nets.')
-
 flags.DEFINE_boolean('softmax_reduction', False, 'Use softmax reduction in processor instead of max, for training.')
+####
+# Asynchrony flags
+####
 flags.DEFINE_float('regularisation_weight', 0.0,
                    'Weight given to regularisation loss')
 flags.DEFINE_boolean('bound_regularisation_loss', False,
                      'Whether to bound the regularisation loss to not grow too much in the early stages of training.')
 flags.DEFINE_float('max_proportion_regularisation', 0.2,
                    'Regularisation loss cannot be higher than this proportion of the quality loss.')
+
+flags.DEFINE_integer('num_messages_sample', 2,
+                   'Number of messages to sample for each node to compute asynchrony losses.')
+flags.DEFINE_integer('num_nodes_sample', 2,
+                   'Number of nodes to sample to compute asynchrony losses.')
+
 
 FLAGS = flags.FLAGS
 
@@ -484,7 +494,9 @@ def main(unused_argv):
       FLAGS.processor_type,
       use_ln=FLAGS.use_ln,
       nb_triplet_fts=FLAGS.nb_triplet_fts,
-      nb_heads=FLAGS.nb_heads
+      nb_heads=FLAGS.nb_heads,
+      num_messages_sample=FLAGS.num_messages_sample,
+      num_nodes_sample=FLAGS.num_nodes_sample,
   )
   model_params = dict(
       processor_factory=processor_factory,
