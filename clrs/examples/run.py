@@ -698,16 +698,7 @@ def main(unused_argv):
                   'hints': hints,
                   }
 
-  np.savez('trajs.npz', **trajs_dump)
-
-  with open('trajs.pkl', 'wb') as file:
-    pickle.dump({
-      'trajs': trajs,
-      'score': stats,
-      'feedback': feedback,
-      'preds': preds
-      }, file, protocol=-1)
-
+  np.savez(f"{FLAGS.checkpoint_path}/trajs.npz", **trajs_dump)
 
   logging.info('Done!')
 

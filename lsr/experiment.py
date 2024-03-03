@@ -54,7 +54,7 @@ def plot_heatmap_trajwise_old(data, name):
   fig.savefig(f"{name}_heatmap.png", dpi=300)
 
 
-def plot_heatmap_trajwise(data, name):
+def plot_heatmap_trajwise(data, path="./"):
   samples, mp_steps, dim = data.shape
 
   trajwise_pca = PCA()
@@ -72,9 +72,9 @@ def plot_heatmap_trajwise(data, name):
 
   fig.suptitle(f"Trajectory-wise PCA components heatmap")
   fig.tight_layout()
-  fig.savefig(f"{name}_heatmap.png", dpi=300)
+  fig.savefig(f"{path}/trajwise_heatmap.png", dpi=300)
 
-def plot_trajwise(data, score, name, prefix = 'default'):
+def plot_trajwise(data, score, path ="./", prefix = 'default'):
   samples, mp_steps, dim = data.shape
 
   trajwise_pca = PCA()
@@ -93,10 +93,10 @@ def plot_trajwise(data, score, name, prefix = 'default'):
   fig.suptitle(f"Trajectory-wise PCA (shape = samples, mp_steps*dim)\n "
                f"{get_pca_evr(trajwise_pca, 3):.2f}% explained")
   fig.tight_layout()
-  fig.savefig(f"{prefix}_trajwise.png", dpi=300)
+  fig.savefig(f"{path}/{prefix}_trajwise.png", dpi=300)
 
 
-def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndarray, name: str, prefix = 'default'):
+def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndarray, path="./", prefix = 'default'):
 
   samples, mp_steps, dim = data.shape
 
@@ -136,10 +136,10 @@ def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndar
                f"{get_pca_evr(pca, 3):.2f}% explained")
 
   fig.tight_layout()
-  fig.savefig(f"{prefix}_stepwise_global.png", dpi=300)
+  fig.savefig(f"{path}/{prefix}_stepwise_global.png", dpi=300)
 
 
-def plot_stepwise_local(data, paths_drawn, sample_len, name, prefix='default'):
+def plot_stepwise_local(data, paths_drawn, sample_len, path="./", prefix='default'):
 
   samples, mp_steps, dim = data.shape
 
@@ -163,44 +163,53 @@ def plot_stepwise_local(data, paths_drawn, sample_len, name, prefix='default'):
               **common_plot_args)
 
   fig.tight_layout()
-  fig.savefig(f"{prefix}_stepwise_local.png", dpi=300)
+  fig.savefig(f"{path}/{prefix}_stepwise_local.png", dpi=300)
 
 
-def run_experiment(name: str, path: str, paths_drawn=100):
+def run_experiment(path: str, paths_drawn=100):
 
-  data_dump = np.load(path + '.npz')
+  data_dump = np.load(path + 'trajs.npz', allow_pickle=True)
   data = data_dump['trajs']
   score = data_dump['score']
   true_lengths = data_dump['lengths']
 
   try:
-    os.mkdir(f'plots/{name}')
+    os.mkdir(f'{path}/pca_plots')
   except OSError:
     pass
 
+  path = f'{path}/pca_plots'
+
+  max_length = 0
+  max_length_i = 0
+  for i in range(1,20):
+    length_i = np.sum(true_lengths == i)
+    if length_i > max_length:
+      max_length = length_i
+      max_length_i = i
   # print([np.sum(true_lengths == i) for i in range(16)])
 
-  data = data[true_lengths == 9-1, :9-1, :]
-  score = score[true_lengths == 9-1]
-  true_lengths = true_lengths[true_lengths == 9-1]
+  data = data[true_lengths == max_length_i, :max_length_i, :]
+  score = score[true_lengths == max_length_i]
+  true_lengths = true_lengths[true_lengths == max_length_i]
 
   # means = np.mean(data, axis=0)
   # mean_adjusted_data = data - means[np.newaxis, ...]
   # plot_stepwise_global(mean_adjusted_data, paths_drawn, true_lengths, name, 'mean')
   # plot_stepwise_local(mean_adjusted_data, paths_drawn, true_lengths, name, 'mean')
   #
-  plot_trajwise(data, score, name)
+  plot_trajwise(data, score, path)
   alt_score = np.linspace(0, 1, data.shape[0])
-  plot_trajwise(data, alt_score, name, 'alt')
-  plot_heatmap_trajwise(data, name)
+  plot_trajwise(data, alt_score, path, 'alt')
+  plot_heatmap_trajwise(data, path)
 
   # Plot differences instead of points
   diffs = data[:,1:,:] - data[:,:-1,:]
-  plot_stepwise_global(diffs, paths_drawn, true_lengths - 1, name, 'diffs')
-  plot_stepwise_local(diffs, paths_drawn, true_lengths - 1, name, 'diffs')
+  plot_stepwise_global(diffs, paths_drawn, true_lengths - 1, path, 'diffs')
+  plot_stepwise_local(diffs, paths_drawn, true_lengths - 1, path, 'diffs')
 
-  plot_stepwise_global(data, paths_drawn, true_lengths, name)
-  plot_stepwise_local(data, paths_drawn, true_lengths, name)
+  plot_stepwise_global(data, paths_drawn, true_lengths, path)
+  plot_stepwise_local(data, paths_drawn, true_lengths, path)
 
   return
   a = 4
