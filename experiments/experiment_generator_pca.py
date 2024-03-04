@@ -8,7 +8,7 @@ from pathlib import Path
 # Only need to change this line experiments_to run
 ###################################################
 experiments_to_run = [0, 1, 2, 3, 4, 5]
-test_flag = "True"
+test_flag = True
 ###################################################
 # No need to change anything below here
 ###################################################
@@ -28,7 +28,7 @@ slurm_template_file = f"{experiments_folder}/slurm_l65_gpu_template_pca"
 # Output file
 slurm_output_file_name = "slurm_l65_gpu_template_experiment"
 # File containing the configurations for the different experiments
-experiment_file_name = f"{experiments_folder}/experiments.json"
+experiment_file_name = f"{experiments_folder}/experiments_pca.json"
 
 # Read the template file
 with open(experiment_file_name, "r") as experiment_file:
@@ -41,8 +41,9 @@ with open(experiment_file_name, "r") as experiment_file:
             continue
         experiment_options = (f"--checkpoint_path {checkpoints_folder}/{experiment_id} "
                               f"--dataset_path {datasets_folder}/{experiment_id} "
-                              f"--test {test_flag}"
-                              )
+                             )
+        if test_flag:
+            experiment_options += "--test "
         for key, value in experiment_args.items():
             if type(value) == bool:
                 if value:
@@ -69,7 +70,7 @@ with open(experiment_file_name, "r") as experiment_file:
             experiment_id=experiment_id,
             CRSid=CRSid,
             conda_environment=conda_environment,
-            test="" if test_flag == "False" else "_test"
+            test="_test" if test_flag else "",
         )
 
         # Write the rendered template to a new file or use it as needed
@@ -102,6 +103,6 @@ for experiment_id in experiments_to_run:
 for experiment_id in experiments_to_run:
     print(f'Running experiment with ID: {experiment_id}')
     # Command to execute experiment
-    call(["sbatch", f"{experiments_folder}/{slurm_output_file_name}_{experiment_id}"])
+    # call(["sbatch", f"{experiments_folder}/{slurm_output_file_name}_{experiment_id}"])
 
 
