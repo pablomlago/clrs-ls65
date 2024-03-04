@@ -103,6 +103,6 @@ for experiment_id in experiments_to_run:
 for experiment_id in experiments_to_run:
     print(f'Running experiment with ID: {experiment_id}')
     # Command to execute experiment
-    # call(["sbatch", f"{experiments_folder}/{slurm_output_file_name}_{experiment_id}"])
+    call(["sbatch", f"{experiments_folder}/{slurm_output_file_name}_{experiment_id}"])
 
 
