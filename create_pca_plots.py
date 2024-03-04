@@ -9,7 +9,7 @@ from lsr.experiment import run_experiment
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = [1]
+experiments_to_run = [0, 1, 2, 3, 4, 5]
 ###################################################
 # No need to change anything below here
 ###################################################
@@ -19,7 +19,7 @@ experiments_folder = "./experiments"
 # Checkpoints folder
 checkpoints_folder = "./results"
 # File containing the configurations for the different experiments
-experiment_file_name = f"{experiments_folder}/experiments.json"
+experiment_file_name = f"{experiments_folder}/experiments_pca.json"
 
 # Read the template file
 with open(experiment_file_name, "r") as experiment_file:

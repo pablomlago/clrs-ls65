@@ -7,8 +7,8 @@ from pathlib import Path
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = [0, 1, 2, 3, 4, 5]
-test_flag = True
+experiments_to_run = [6]
+test_flag = False
 ###################################################
 # No need to change anything below here
 ###################################################
