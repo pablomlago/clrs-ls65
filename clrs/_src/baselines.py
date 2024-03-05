@@ -336,18 +336,27 @@ class BaselineModel(model.Model):
   def _predict(self, params, rng_key: hk.PRNGSequence, features: _Features,
                algorithm_index: int, return_hints: bool,
                return_all_outputs: bool, return_all_features: bool):
-    outs, hint_preds, trajs, _ = self.net_fn.apply(
+    outs, hint_preds, trajs, mse_loss = self.net_fn.apply(
         params, rng_key, [features],
         repred=True, algorithm_index=algorithm_index,
         return_hints=return_hints,
         return_all_outputs=return_all_outputs,
         return_all_features=return_all_features)
+    
+    # Calculate mse_loss on validation
+    jax.debug.print("[DEBUG-VAL] Regularised loss: {reg_loss}, Regularisation weight: {reg_weight}, MSE loss: {mse_loss}", 
+                    reg_loss=mse_loss * self.regularisation_weight, 
+                    reg_weight=self.regularisation_weight, 
+                    mse_loss=mse_loss,
+    )
+
     outs = decoders.postprocess(self._spec[algorithm_index],
                                 outs,
                                 sinkhorn_temperature=0.1,
                                 sinkhorn_steps=50,
                                 hard=True,
                                 )
+    
     return outs, hint_preds, trajs
 
   def compute_grad(

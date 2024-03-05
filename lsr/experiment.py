@@ -21,6 +21,7 @@ These plots are used to make Figure 1 from the paper.
 import os
 
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List
@@ -57,8 +58,12 @@ def plot_heatmap_trajwise_old(data, name):
 def plot_heatmap_trajwise(data, path="./"):
   samples, mp_steps, dim = data.shape
 
+  # standard_scaler = StandardScaler()
+  data = data.reshape(samples, mp_steps * dim)
+  # data = standard_scaler.fit_transform(data)
+
   trajwise_pca = PCA()
-  trajwise_pca.fit(data.reshape((samples, mp_steps * dim)))
+  trajwise_pca.fit(data)
 
   fig = plt.figure(figsize=(12, 6))
   ax = fig.add_subplot(111)
@@ -77,8 +82,12 @@ def plot_heatmap_trajwise(data, path="./"):
 def plot_trajwise(data, score, path ="./", prefix = 'default'):
   samples, mp_steps, dim = data.shape
 
+  # standard_scaler = StandardScaler()
+  data = data.reshape(samples, mp_steps * dim)
+  # data = standard_scaler.fit_transform(data)
+
   trajwise_pca = PCA()
-  trajwise = trajwise_pca.fit_transform(data.reshape((samples, mp_steps * dim)))
+  trajwise = trajwise_pca.fit_transform(data)
   assert trajwise.shape == (samples, min(samples, mp_steps * dim))
 
   # Plot trajectories
@@ -100,9 +109,13 @@ def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndar
 
   samples, mp_steps, dim = data.shape
 
+  # standard_scaler = StandardScaler()
+  data = data.reshape((samples * mp_steps, dim))
+  # data = standard_scaler.fit_transform(data)
+
   pca = PCA()
-  pca.fit(np.unique(data.reshape((samples * mp_steps, dim)), axis=0))
-  stepwise_global = pca.transform(data.reshape((samples * mp_steps, dim)))
+  pca.fit(np.unique(data, axis=0))
+  stepwise_global = pca.transform(data)
   stepwise_global: np.ndarray
   stepwise_global = stepwise_global.reshape((samples, mp_steps, -1))
   assert stepwise_global.shape == (samples, mp_steps, min(samples * mp_steps, dim))
@@ -143,6 +156,11 @@ def plot_stepwise_local(data, paths_drawn, sample_len, path="./", prefix='defaul
 
   samples, mp_steps, dim = data.shape
 
+  # data = data.reshape(-1, mp_steps * dim)
+  # standard_scaler = StandardScaler()
+  # data = standard_scaler.fit_transform(data)
+  # data = data.reshape(samples, mp_steps, dim)
+
   pcas = [PCA(n_components=3).fit(data[sample_len >= step, step, :]) for step in range(mp_steps)]
   stepwise_local = np.array([pcas[step].transform(data[:, step, :]) for step in range(mp_steps)])
   assert stepwise_local.shape == (mp_steps, samples, 3)
@@ -168,7 +186,7 @@ def plot_stepwise_local(data, paths_drawn, sample_len, path="./", prefix='defaul
 
 def run_experiment(path: str, paths_drawn=100):
 
-  data_dump = np.load(path + 'trajs.npz', allow_pickle=True)
+  data_dump = np.load(path + 'trajs.npz')
   data = data_dump['trajs']
   score = data_dump['score']
   true_lengths = data_dump['lengths']
