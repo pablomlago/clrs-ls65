@@ -29,7 +29,7 @@ from clrs._src import samplers
 from clrs._src import specs
 
 
-from clrs._src.processors import AsynchronyInformation, expand_asynchrony_information
+from clrs._src.processors import AsynchronyInformation, aggregate_asynchrony_information
 
 import haiku as hk
 import jax
@@ -189,7 +189,7 @@ class Net(hk.Module):
             1.0 - is_not_done) * mp_state.output_preds[outp]
         
     # Carry MSE loss over iterations, in the first iteration None is expected
-    aggregated_asynchrony_information = expand_asynchrony_information(mp_state.asynchrony_information, asynchrony_information)
+    aggregated_asynchrony_information = aggregate_asynchrony_information(mp_state.asynchrony_information, asynchrony_information)
 
     new_mp_state = _MessagePassingScanState(  # pytype: disable=wrong-arg-types  # numpy-scalars
         hint_preds=hint_preds,
@@ -203,7 +203,15 @@ class Net(hk.Module):
         hint_preds=hint_preds if return_hints else None,
         output_preds=output_preds if return_all_outputs else None,
         hiddens=None, lstm_state=None,
-        features=hiddens if True else None, asynchrony_information=None)
+        features=hiddens if True else None, 
+        asynchrony_information=AsynchronyInformation(
+          l2_loss=None,
+          l3_cocycle_loss=None,
+          l3_multimorphism_loss=None,
+          l2_node_update_aggregated=asynchrony_information.l2_node_update_aggregated,
+          l2_node_update_partial=asynchrony_information.l2_node_update_partial,
+        )
+    )
 
     # Complying to jax.scan, the first returned value is the state we carry over
     # the second value is the output that will be stacked over steps.
@@ -338,7 +346,14 @@ class Net(hk.Module):
     hint_preds = invert(accum_mp_state.hint_preds)
     # features = invert(accum_mp_state.features)
 
-    return output_preds, hint_preds, accum_mp_state.features, output_mp_state.asynchrony_information
+    return output_preds, hint_preds, accum_mp_state.features, AsynchronyInformation(
+      l2_loss=output_mp_state.asynchrony_information.l2_loss,
+      l3_cocycle_loss=output_mp_state.asynchrony_information.l3_cocycle_loss,
+      l3_multimorphism_loss=output_mp_state.asynchrony_information.l3_multimorphism_loss,
+      # These tensors have shape [nb_mp_steps, B, N. H]
+      l2_node_update_aggregated=accum_mp_state.asynchrony_information.l2_node_update_aggregated,
+      l2_node_update_partial=accum_mp_state.asynchrony_information.l2_node_update_partial
+    )
 
   def _construct_encoders_decoders(self):
     """Constructs encoders and decoders, separate for each algorithm."""
@@ -436,7 +451,7 @@ class Net(hk.Module):
           nb_nodes=nb_nodes,
       )
       # Aggregate asynchrony information
-      aggregated_asyncrony_information = expand_asynchrony_information(aggregated_asyncrony_information, asynchrony_information)
+      aggregated_asyncrony_information = aggregate_asynchrony_information(aggregated_asyncrony_information, asynchrony_information)
     nxt_hidden = inject_noise(nxt_hidden, self.noise_vectors, self.noise_mode, hk.next_rng_key(), i,
                               lengths.reshape(-1,1).repeat(repeats=nxt_hidden.shape[1], axis=1))
 

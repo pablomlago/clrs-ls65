@@ -321,16 +321,20 @@ def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   outputs = []
   lengths = []
   hints = []
+  l2_node_updates_partial = []
+  l2_node_updates_aggregated = []
   while processed_samples < sample_count:
     feedback = next(sampler)
     batch_size = feedback.outputs[0].data.shape[0]
     outputs.append(feedback.outputs)
     new_rng_key, rng_key = jax.random.split(rng_key)
-    cur_preds, cur_hints, cur_trajs = predict_fn(new_rng_key, feedback.features,
+    cur_preds, cur_hints, (cur_trajs, asynchrony_information) = predict_fn(new_rng_key, feedback.features,
                                                  return_hints=True)
     preds.append(cur_preds)
     hints.append(cur_hints)
     trajs.append(cur_trajs)
+    l2_node_updates_partial.append(asynchrony_information.l2_node_update_partial)
+    l2_node_updates_aggregated.append(asynchrony_information.l2_node_update_aggregated)
     inputs.append(feedback)
     lengths.append(feedback.features[2])
     processed_samples += batch_size
@@ -341,6 +345,20 @@ def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   trajs = jax.numpy.max(trajs, axis=2)
   # The dimensions are T x N x D
   trajs = trajs.transpose(1,0,2)
+
+  # Aggregate information for assynchrony embeddings
+  l2_node_updates_partial = _concat(fill_trajectories(l2_node_updates_partial), axis=1)
+  # Reduce over the node dimension
+  l2_node_updates_partial = jax.numpy.max(l2_node_updates_partial, axis=2)
+  # The dimensions are T x N x D
+  l2_node_updates_partial = l2_node_updates_partial .transpose(1,0,2)
+
+  l2_node_updates_aggregated = _concat(fill_trajectories(l2_node_updates_aggregated), axis=1)
+  # Reduce over the node dimension
+  l2_node_updates_aggregated = jax.numpy.max(l2_node_updates_aggregated, axis=2)
+  # The dimensions are T x N x D
+  l2_node_updates_aggregated = l2_node_updates_aggregated.transpose(1,0,2)
+
   hints = _concat(fill(hints), axis=0)
   inputs = _concat(inputs, axis=0)
   lengths = jax.numpy.array(lengths).flatten().astype(int)
@@ -348,7 +366,7 @@ def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   # graph_fts = jax.numpy.asarray([d['node'] for d in trajs]).transpose(1, 2, 0, 3)
   # graph_fts = jax.numpy.asarray([d['graph'] for d in trajs]).transpose(1, 0, 2)
   graph_fts = np.zeros_like(lengths)
-  return lengths, trajs, out, inputs, preds, hints
+  return lengths, trajs, out, inputs, preds, hints, l2_node_updates_partial, l2_node_updates_aggregated 
 
 
 def create_samplers(rng, train_lengths: List[int]):
@@ -682,7 +700,7 @@ def main(unused_argv):
 
   for algo_idx in range(len(special_samplers)):
     new_rng_key, rng_key = jax.random.split(rng_key)
-    lengths, trajs, stats, feedback, preds, hints = dump_trajectories(
+    lengths, trajs, stats, feedback, preds, hints, l2_node_updates_partial, l2_node_updates_aggregated = dump_trajectories(
         special_samplers[algo_idx],
         functools.partial(specil_model.predict, algorithm_index=algo_idx, return_all_features=True),
         special_sample_counts[algo_idx],
@@ -696,6 +714,8 @@ def main(unused_argv):
                   'inputs': feedback.features.inputs,
                   'outputs': feedback.outputs,
                   'hints': hints,
+                  'l2_node_updates_partial': l2_node_updates_partial,
+                  'l2_node_updates_aggregated': l2_node_updates_aggregated,
                   }
 
   np.savez(f"{FLAGS.checkpoint_path}/trajs.npz", **trajs_dump)

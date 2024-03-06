@@ -357,7 +357,7 @@ class BaselineModel(model.Model):
                                 hard=True,
                                 )
     
-    return outs, hint_preds, trajs
+    return outs, hint_preds, (trajs, asynchrony_information)
 
   def compute_grad(
       self,

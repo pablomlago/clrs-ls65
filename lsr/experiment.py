@@ -183,12 +183,69 @@ def plot_stepwise_local(data, paths_drawn, sample_len, path="./", prefix='defaul
   fig.tight_layout()
   fig.savefig(f"{path}/{prefix}_stepwise_local.png", dpi=300)
 
+def plot_stepwise_local_asynchrony(data, paths_drawn, sample_len, path="./", prefix='default'):
+
+  samples, mp_steps, dim = data[0].shape
+
+  print(data[0].shape)
+  print(data[1].shape)
+
+  data_1, data_2 = data
+
+  # data = data.reshape(-1, mp_steps * dim)
+  # standard_scaler = StandardScaler()
+  # data = standard_scaler.fit_transform(data)
+  # data = data.reshape(samples, mp_steps, dim)
+
+  pcas = [PCA(n_components=3).fit(np.concatenate(data, axis=1)[sample_len >= step, step, :]) for step in range(mp_steps)]
+
+  data = data_1
+
+  stepwise_local = np.array([pcas[step].transform(data[:, step, :]) for step in range(mp_steps)])
+  assert stepwise_local.shape == (mp_steps, samples, 3)
+
+  SCALE_FACTOR = 2 + mp_steps
+  trajs_PCA_scale_factor = 1 / np.max(np.abs(stepwise_local[:, :, 2]), axis=-1) / SCALE_FACTOR
+
+  fig, ax = plt.subplots(figsize=(15, 6), subplot_kw=dict(projection=f'3d'))
+  ax.view_init(azim=-75, elev=15)
+  ax.set_box_aspect(aspect=(2.5, 1, 1))
+  for i in range(mp_steps):
+    ax.scatter(i + stepwise_local[i, sample_len >= i, 2] * trajs_PCA_scale_factor[i],
+               stepwise_local[i, sample_len >= i, 0], stepwise_local[i, sample_len >= i, 1], c='red', marker='o', s=PIXEL_S, edgecolor='none')
+  if paths_drawn > 0:
+    for i in np.arange(0, samples, step=int(samples / paths_drawn)):
+      ax.plot(np.arange(sample_len[i]) + stepwise_local[0:sample_len[i], i, 2] * trajs_PCA_scale_factor[0:sample_len[i]],
+              stepwise_local[0:sample_len[i], i, 0], stepwise_local[0:sample_len[i], i, 1],
+              color='orange', alpha=0.6, lw=0.1)
+      
+  data = data_2
+
+  stepwise_local = np.array([pcas[step].transform(data[:, step, :]) for step in range(mp_steps)])
+  assert stepwise_local.shape == (mp_steps, samples, 3)
+
+  SCALE_FACTOR = 2 + mp_steps
+  trajs_PCA_scale_factor = 1 / np.max(np.abs(stepwise_local[:, :, 2]), axis=-1) / SCALE_FACTOR
+
+  for i in range(mp_steps):
+    ax.scatter(i + stepwise_local[i, sample_len >= i, 2] * trajs_PCA_scale_factor[i],
+               stepwise_local[i, sample_len >= i, 0], stepwise_local[i, sample_len >= i, 1], c='blue', marker='o', s=PIXEL_S, edgecolor='none')
+  if paths_drawn > 0:
+    for i in np.arange(0, samples, step=int(samples / paths_drawn)):
+      ax.plot(np.arange(sample_len[i]) + stepwise_local[0:sample_len[i], i, 2] * trajs_PCA_scale_factor[0:sample_len[i]],
+              stepwise_local[0:sample_len[i], i, 0], stepwise_local[0:sample_len[i], i, 1],
+              color='green', alpha=0.6, lw=0.1)
+
+  fig.tight_layout()
+  fig.savefig(f"{path}/{prefix}_stepwise_local_embeddings.png", dpi=300)
 
 def run_experiment(path: str, paths_drawn=100):
 
   data_dump = np.load(path + 'trajs.npz')
   data = data_dump['trajs']
   score = data_dump['score']
+  l2_node_updates_partial = data_dump['l2_node_updates_partial']
+  l2_node_updates_aggregated = data_dump['l2_node_updates_aggregated']
   true_lengths = data_dump['lengths']
 
   try:
@@ -209,8 +266,9 @@ def run_experiment(path: str, paths_drawn=100):
 
   data = data[true_lengths == max_length_i, :max_length_i, :]
   score = score[true_lengths == max_length_i]
-  true_lengths = true_lengths[true_lengths == max_length_i]
-
+  l2_node_updates_aggregated = l2_node_updates_aggregated[true_lengths == max_length_i, :max_length_i, :]
+  l2_node_updates_partial = l2_node_updates_partial[true_lengths == max_length_i, :max_length_i, :]
+  true_lengths = true_lengths[true_lengths == max_length_i]  
   # means = np.mean(data, axis=0)
   # mean_adjusted_data = data - means[np.newaxis, ...]
   # plot_stepwise_global(mean_adjusted_data, paths_drawn, true_lengths, name, 'mean')
@@ -228,6 +286,7 @@ def run_experiment(path: str, paths_drawn=100):
 
   plot_stepwise_global(data, paths_drawn, true_lengths, path)
   plot_stepwise_local(data, paths_drawn, true_lengths, path)
+  plot_stepwise_local_asynchrony([l2_node_updates_aggregated, l2_node_updates_partial], paths_drawn, true_lengths-1, path)
 
   return
   a = 4

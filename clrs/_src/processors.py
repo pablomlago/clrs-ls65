@@ -34,10 +34,12 @@ class AsynchronyInformation:
   l2_loss: chex.Array
   l3_cocycle_loss: chex.Array
   l3_multimorphism_loss: chex.Array
+  l2_node_update_aggregated: Optional[chex.Array]
+  l2_node_update_partial: Optional[chex.Array]
 
-def expand_asynchrony_information(
+def aggregate_asynchrony_information(
     aggregated_asynchrony_information: Optional[AsynchronyInformation], 
-    new_asynchrony_information: AsynchronyInformation
+    new_asynchrony_information: AsynchronyInformation,
   ) -> AsynchronyInformation:
   # If the aggregated information so far is None, simply return the new information
   if aggregated_asynchrony_information is None:
@@ -47,6 +49,9 @@ def expand_asynchrony_information(
     l2_loss=aggregated_asynchrony_information.l2_loss + new_asynchrony_information.l2_loss,
     l3_cocycle_loss=aggregated_asynchrony_information.l3_cocycle_loss + new_asynchrony_information.l3_cocycle_loss,
     l3_multimorphism_loss=aggregated_asynchrony_information.l3_multimorphism_loss + new_asynchrony_information.l3_multimorphism_loss,
+    # Embeddings to create asynchrony visualizations
+    l2_node_update_aggregated=new_asynchrony_information.l2_node_update_aggregated,
+    l2_node_update_partial=new_asynchrony_information.l2_node_update_partial,
   )
 
 _Array = chex.Array
@@ -230,7 +235,14 @@ def compute_asynchrony_losses(
   )
 
   # Return the three loss components as a dictionary
-  return AsynchronyInformation(l2_loss=l2_loss, l3_cocycle_loss=l3_cocycle_loss, l3_multimorphism_loss=l3_multimorphism_loss)
+  return AsynchronyInformation(
+    l2_loss=l2_loss, 
+    l3_cocycle_loss=l3_cocycle_loss, 
+    l3_multimorphism_loss=l3_multimorphism_loss,
+    # Expand across first dimension to concatenate over steps
+    l2_node_update_aggregated=node_update_aggregated,
+    l2_node_update_partial=node_update_partial,
+  )
 
 class Processor(hk.Module):
   """Processor abstract base class."""
