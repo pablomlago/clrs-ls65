@@ -29,6 +29,26 @@ import numpy as np
 
 from clrs._src.utils import sample_msgs, sample_nodes
 
+@chex.dataclass
+class AsynchronyInformation:
+  l2_loss: chex.Array
+  l3_cocycle_loss: chex.Array
+  l3_multimorphism_loss: chex.Array
+
+def expand_asynchrony_information(
+    aggregated_asynchrony_information: Optional[AsynchronyInformation], 
+    new_asynchrony_information: AsynchronyInformation
+  ) -> AsynchronyInformation:
+  # If the aggregated information so far is None, simply return the new information
+  if aggregated_asynchrony_information is None:
+    return new_asynchrony_information
+  # Otherse aggregate information
+  return AsynchronyInformation(
+    l2_loss=aggregated_asynchrony_information.l2_loss + new_asynchrony_information.l2_loss,
+    l3_cocycle_loss=aggregated_asynchrony_information.l3_cocycle_loss + new_asynchrony_information.l3_cocycle_loss,
+    l3_multimorphism_loss=aggregated_asynchrony_information.l3_multimorphism_loss + new_asynchrony_information.l3_multimorphism_loss,
+  )
+
 _Array = chex.Array
 _Fn = Callable[..., Any]
 BIG_NUMBER = 1e6
@@ -210,7 +230,7 @@ def compute_asynchrony_losses(
   )
 
   # Return the three loss components as a dictionary
-  return {"l2_loss": l2_loss, "l3_cocycle_loss": l3_cocycle_loss, "l3_multimorphism_loss": l3_multimorphism_loss}
+  return AsynchronyInformation(l2_loss=l2_loss, l3_cocycle_loss=l3_cocycle_loss, l3_multimorphism_loss=l3_multimorphism_loss)
 
 class Processor(hk.Module):
   """Processor abstract base class."""
@@ -1164,7 +1184,7 @@ class PGN_L1_Regularised_Max(Processor):
     # Computation of h_{i}^{(t)}=f_{r}(z_{i}^{(t)}, m_{i}^{(t)})
     ret, _ = compute_node_update_scan(hidden, msgs)
 
-    return ret, None, asynchrony_losses["l2_loss"]  # pytype: disable=bad-return-type  # numpy-scalars
+    return ret, None, asynchrony_losses  # pytype: disable=bad-return-type  # numpy-scalars
 
 class PGN_L1_Regularised(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
@@ -1288,7 +1308,7 @@ class PGN_L1_Regularised(Processor):
     # Computation of h_{i}^{(t)}=f_{r}(z_{i}^{(t)}, m_{i}^{(t)})
     ret, _ = compute_node_update_scan(hidden, msgs)
 
-    return ret, None, asynchrony_losses["l2_loss"]  # pytype: disable=bad-return-type  # numpy-scalars
+    return ret, None, asynchrony_losses  # pytype: disable=bad-return-type  # numpy-scalars
   
 class PGN_L2(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
@@ -1402,7 +1422,7 @@ class PGN_L2(Processor):
     # The node update is the maximum
     ret, _ = compute_node_update_scan(hidden, msgs)
 
-    return ret, None, asynchrony_losses["l2_loss"] # pytype: disable=bad-return-type  # numpy-scalars
+    return ret, None, asynchrony_losses # pytype: disable=bad-return-type  # numpy-scalars
 
 class PGN_L3(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
@@ -1522,7 +1542,7 @@ class PGN_L3(Processor):
 
     ret, _ = compute_node_update_scan(hidden, msgs)
 
-    return ret, None, asynchrony_losses["l2_loss"] # pytype: disable=bad-return-type  # numpy-scalars
+    return ret, None, asynchrony_losses # pytype: disable=bad-return-type  # numpy-scalars
   
 class LinearPGN(PGN):
   """PGN Network without nonlinearities"""

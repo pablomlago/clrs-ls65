@@ -28,6 +28,9 @@ from clrs._src import processors
 from clrs._src import samplers
 from clrs._src import specs
 
+
+from clrs._src.processors import AsynchronyInformation, expand_asynchrony_information
+
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -44,7 +47,6 @@ _Stage = specs.Stage
 _Trajectory = samplers.Trajectory
 _Type = specs.Type
 
-
 @chex.dataclass
 class _MessagePassingScanState:
   hint_preds: chex.Array
@@ -52,7 +54,7 @@ class _MessagePassingScanState:
   hiddens: chex.Array
   lstm_state: Optional[hk.LSTMState]
   features: Dict[str, chex.Array]
-  mse_loss: Optional[chex.Array]
+  asynchrony_information: Optional[AsynchronyInformation]
 
 
 @chex.dataclass
@@ -171,7 +173,7 @@ class Net(hk.Module):
             probing.DataPoint(
                 name=hint.name, location=loc, type_=typ, data=hint_data))
 
-    hiddens, output_preds_cand, hint_preds, lstm_state, features, mse_loss = self._one_step_pred(
+    hiddens, output_preds_cand, hint_preds, lstm_state, features, asynchrony_information = self._one_step_pred(
         inputs, cur_hint, mp_state.hiddens,
         batch_size, nb_nodes, mp_state.lstm_state,
         spec, encs, decs, repred, i, lengths)
@@ -187,7 +189,7 @@ class Net(hk.Module):
             1.0 - is_not_done) * mp_state.output_preds[outp]
         
     # Carry MSE loss over iterations, in the first iteration None is expected
-    aggregated_mse_loss = mse_loss + mp_state.mse_loss if mp_state.mse_loss is not None else mse_loss
+    aggregated_asynchrony_information = expand_asynchrony_information(mp_state.asynchrony_information, asynchrony_information)
 
     new_mp_state = _MessagePassingScanState(  # pytype: disable=wrong-arg-types  # numpy-scalars
         hint_preds=hint_preds,
@@ -195,13 +197,13 @@ class Net(hk.Module):
         hiddens=hiddens,
         lstm_state=lstm_state,
         features=None,
-        mse_loss=aggregated_mse_loss)
+        asynchrony_information=aggregated_asynchrony_information)
     # Save memory by not stacking unnecessary fields
     accum_mp_state = _MessagePassingScanState(  # pytype: disable=wrong-arg-types  # numpy-scalars
         hint_preds=hint_preds if return_hints else None,
         output_preds=output_preds if return_all_outputs else None,
         hiddens=None, lstm_state=None,
-        features=hiddens if True else None, mse_loss=None)
+        features=hiddens if True else None, asynchrony_information=None)
 
     # Complying to jax.scan, the first returned value is the state we carry over
     # the second value is the output that will be stacked over steps.
@@ -279,7 +281,7 @@ class Net(hk.Module):
 
       mp_state = _MessagePassingScanState(  # pytype: disable=wrong-arg-types  # numpy-scalars
           hint_preds=None, output_preds=None,
-          hiddens=hiddens, lstm_state=lstm_state, features=None, mse_loss=None)
+          hiddens=hiddens, lstm_state=lstm_state, features=None, asynchrony_information=None)
 
       # Do the first step outside of the scan because it has a different
       # computation graph.
@@ -336,7 +338,7 @@ class Net(hk.Module):
     hint_preds = invert(accum_mp_state.hint_preds)
     # features = invert(accum_mp_state.features)
 
-    return output_preds, hint_preds, accum_mp_state.features, output_mp_state.mse_loss
+    return output_preds, hint_preds, accum_mp_state.features, output_mp_state.asynchrony_information
 
   def _construct_encoders_decoders(self):
     """Constructs encoders and decoders, separate for each algorithm."""
@@ -422,9 +424,9 @@ class Net(hk.Module):
     #              (hidden - jnp.mean(hidden, axis=-1, keepdims=True)) * self.decay
 
     # Acummulate mse_losses
-    aggregated_mse_loss = None
+    aggregated_asyncrony_information = None
     for _ in range(self.nb_msg_passing_steps):
-      nxt_hidden, nxt_edge, mse_loss = self.processor(
+      nxt_hidden, nxt_edge, asynchrony_information = self.processor(
           node_fts,
           edge_fts,
           graph_fts,
@@ -433,7 +435,8 @@ class Net(hk.Module):
           batch_size=batch_size,
           nb_nodes=nb_nodes,
       )
-      aggregated_mse_loss = aggregated_mse_loss + mse_loss if aggregated_mse_loss is not None else mse_loss
+      # Aggregate asynchrony information
+      aggregated_asyncrony_information = expand_asynchrony_information(aggregated_asyncrony_information, asynchrony_information)
     nxt_hidden = inject_noise(nxt_hidden, self.noise_vectors, self.noise_mode, hk.next_rng_key(), i,
                               lengths.reshape(-1,1).repeat(repeats=nxt_hidden.shape[1], axis=1))
 
@@ -470,7 +473,7 @@ class Net(hk.Module):
     # features = dict(node=nxt_hidden)
     # features = dict(graph=jnp.mean(nxt_hidden, axis=-2))
     features = {}
-    return nxt_hidden, output_preds, hint_preds, nxt_lstm_state, features, aggregated_mse_loss
+    return nxt_hidden, output_preds, hint_preds, nxt_lstm_state, features, aggregated_asyncrony_information
 
 
 class NetChunked(Net):

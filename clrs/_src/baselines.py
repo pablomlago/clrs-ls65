@@ -336,7 +336,7 @@ class BaselineModel(model.Model):
   def _predict(self, params, rng_key: hk.PRNGSequence, features: _Features,
                algorithm_index: int, return_hints: bool,
                return_all_outputs: bool, return_all_features: bool):
-    outs, hint_preds, trajs, mse_loss = self.net_fn.apply(
+    outs, hint_preds, trajs, asynchrony_information = self.net_fn.apply(
         params, rng_key, [features],
         repred=True, algorithm_index=algorithm_index,
         return_hints=return_hints,
@@ -345,9 +345,9 @@ class BaselineModel(model.Model):
     
     # Calculate mse_loss on validation
     jax.debug.print("[DEBUG-VAL] Regularised loss: {reg_loss}, Regularisation weight: {reg_weight}, MSE loss: {mse_loss}", 
-                    reg_loss=mse_loss * self.regularisation_weight, 
+                    reg_loss=asynchrony_information.l2_loss * self.regularisation_weight, 
                     reg_weight=self.regularisation_weight, 
-                    mse_loss=mse_loss,
+                    mse_loss=asynchrony_information.l2_loss,
     )
 
     outs = decoders.postprocess(self._spec[algorithm_index],
@@ -418,7 +418,7 @@ class BaselineModel(model.Model):
 
   def _loss(self, params, rng_key, feedback, algorithm_index):
     """Calculates model loss f(feedback; params)."""
-    output_preds, hint_preds, _, mse_loss = self.net_fn.apply(
+    output_preds, hint_preds, _, asynchrony_information = self.net_fn.apply(
         params, rng_key, [feedback.features],
         repred=False,
         algorithm_index=algorithm_index,
@@ -449,14 +449,11 @@ class BaselineModel(model.Model):
         )
 
     # TODO: Remove once validated, as it impacts performance
-    regularisation_loss = self.regularisation_weight * mse_loss
-    # Bound regularisation loss if required
-    if self.bound_regularisation_loss:
-      regularisation_loss = jnp.max(regularisation_loss, total_loss * self.max_proportion_regularisation)
+    regularisation_loss = self.regularisation_weight * asynchrony_information.l2_loss
     jax.debug.print("[DEBUG] Regularised loss: {reg_loss}, Regularisation weight: {reg_weight}, MSE loss: {mse_loss}, Quality loss: {quality_loss}", 
                     reg_loss=regularisation_loss, 
                     reg_weight=self.regularisation_weight, 
-                    mse_loss=mse_loss,
+                    mse_loss=asynchrony_information.l2_loss,
                     quality_loss=total_loss,
     )
 
