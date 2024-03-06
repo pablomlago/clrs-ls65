@@ -892,7 +892,13 @@ class PGN_L1(Processor):
     if self.activation is not None:
       ret = self.activation(ret)
 
-    return ret, None, jnp.array(0.)  # pytype: disable=bad-return-type  # numpy-scalars
+    return ret, None, AsynchronyInformation(
+      l2_loss=jnp.array(0.),
+      l3_cocycle_loss=jnp.array(0.),
+      l3_multimorphism_loss=jnp.array(0.),
+      l2_node_update_aggregated=None,
+      l2_node_update_partial=None,
+    )  # pytype: disable=bad-return-type  # numpy-scalars
 
 class PGN_L1_Max(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
@@ -981,7 +987,13 @@ class PGN_L1_Max(Processor):
     if self.activation is not None:
       ret = self.activation(ret)
 
-    return ret, None, jnp.array(0.)  # pytype: disable=bad-return-type  # numpy-scalars
+    return ret, None, AsynchronyInformation(
+      l2_loss=jnp.array(0.),
+      l3_cocycle_loss=jnp.array(0.),
+      l3_multimorphism_loss=jnp.array(0.),
+      l2_node_update_aggregated=None,
+      l2_node_update_partial=None,
+    )  # pytype: disable=bad-return-type  # numpy-scalars
 
 class PGN_L1_Residual(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
@@ -1073,7 +1085,13 @@ class PGN_L1_Residual(Processor):
     # Add residual connection
     ret = ret + hidden
 
-    return ret, None, jnp.array(0.)  # pytype: disable=bad-return-type  # numpy-scalars
+    return ret, None, AsynchronyInformation(
+      l2_loss=jnp.array(0.),
+      l3_cocycle_loss=jnp.array(0.),
+      l3_multimorphism_loss=jnp.array(0.),
+      l2_node_update_aggregated=None,
+      l2_node_update_partial=None,
+    )  # pytype: disable=bad-return-type  # numpy-scalars
   
 class PGN_L1_Regularised_Max(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""

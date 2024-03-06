@@ -1,10 +1,10 @@
 {
     "0": {
-        "processor_type": "mpnn_l1",
+        "processor_type": "mpnn_l1_regularised",
         "algorithms": "bellman_ford"
     },
     "1": {
-        "processor_type": "mpnn_l1_max",
+        "processor_type": "mpnn_l1_max_regularised",
         "algorithms": "bellman_ford"
     },
     "2": {
