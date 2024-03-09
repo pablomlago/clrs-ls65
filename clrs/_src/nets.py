@@ -52,6 +52,7 @@ class _MessagePassingScanState:
   hint_preds: chex.Array
   output_preds: chex.Array
   hiddens: chex.Array
+  node_args: chex.Array
   lstm_state: Optional[hk.LSTMState]
   features: Dict[str, chex.Array]
   asynchrony_information: Optional[AsynchronyInformation]
@@ -173,8 +174,8 @@ class Net(hk.Module):
             probing.DataPoint(
                 name=hint.name, location=loc, type_=typ, data=hint_data))
 
-    hiddens, output_preds_cand, hint_preds, lstm_state, features, asynchrony_information = self._one_step_pred(
-        inputs, cur_hint, mp_state.hiddens,
+    hiddens, node_args, output_preds_cand, hint_preds, lstm_state, features, asynchrony_information = self._one_step_pred(
+        inputs, cur_hint, mp_state.hiddens, mp_state.node_args,
         batch_size, nb_nodes, mp_state.lstm_state,
         spec, encs, decs, repred, i, lengths)
 
@@ -195,6 +196,7 @@ class Net(hk.Module):
         hint_preds=hint_preds,
         output_preds=output_preds,
         hiddens=hiddens,
+        node_args=node_args,
         lstm_state=lstm_state,
         features=None,
         asynchrony_information=aggregated_asynchrony_information)
@@ -202,7 +204,7 @@ class Net(hk.Module):
     accum_mp_state = _MessagePassingScanState(  # pytype: disable=wrong-arg-types  # numpy-scalars
         hint_preds=hint_preds if return_hints else None,
         output_preds=output_preds if return_all_outputs else None,
-        hiddens=None, lstm_state=None,
+        hiddens=None, node_args=None, lstm_state=None,
         features=hiddens if True else None, 
         asynchrony_information=AsynchronyInformation(
           l2_loss=None,
@@ -278,6 +280,7 @@ class Net(hk.Module):
 
       nb_mp_steps = max(1, hints[0].data.shape[0] - 1)
       hiddens = jnp.zeros((batch_size, nb_nodes, self.hidden_dim))
+      node_args = jnp.zeros((batch_size, nb_nodes, self.hidden_dim))
 
       if self.use_lstm:
         lstm_state = lstm_init(batch_size * nb_nodes)
@@ -289,7 +292,7 @@ class Net(hk.Module):
 
       mp_state = _MessagePassingScanState(  # pytype: disable=wrong-arg-types  # numpy-scalars
           hint_preds=None, output_preds=None,
-          hiddens=hiddens, lstm_state=lstm_state, features=None, asynchrony_information=None)
+          hiddens=hiddens, node_args=node_args, lstm_state=lstm_state, features=None, asynchrony_information=None)
 
       # Do the first step outside of the scan because it has a different
       # computation graph.
@@ -395,6 +398,7 @@ class Net(hk.Module):
       inputs: _Trajectory,
       hints: _Trajectory,
       hidden: _Array,
+      node_args: _Array,
       batch_size: int,
       nb_nodes: int,
       lstm_state: Optional[hk.LSTMState],
@@ -435,33 +439,44 @@ class Net(hk.Module):
 
     # PROCESS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     nxt_hidden = hidden * self.decay
+    nxt_args = node_args * self.decay
     # nxt_hidden = jnp.mean(hidden, axis=-1, keepdims=True) + \
     #              (hidden - jnp.mean(hidden, axis=-1, keepdims=True)) * self.decay
 
     # Acummulate mse_losses
     aggregated_asyncrony_information = None
     for _ in range(self.nb_msg_passing_steps):
-      nxt_hidden, nxt_edge, asynchrony_information = self.processor(
+      nxt_hidden, nxt_args, nxt_edge, asynchrony_information = self.processor(
           node_fts,
           edge_fts,
           graph_fts,
           adj_mat,
           nxt_hidden,
+          nxt_args,
           batch_size=batch_size,
           nb_nodes=nb_nodes,
       )
       # Aggregate asynchrony information
       aggregated_asyncrony_information = aggregate_asynchrony_information(aggregated_asyncrony_information, asynchrony_information)
-    nxt_hidden = inject_noise(nxt_hidden, self.noise_vectors, self.noise_mode, hk.next_rng_key(), i,
+    # Use the same key for the noise in hidden and args, just to ensure that the results are the same when using the identity argument generation
+    random_key = hk.next_rng_key()
+    nxt_hidden = inject_noise(nxt_hidden, self.noise_vectors, self.noise_mode, random_key, i,
                               lengths.reshape(-1,1).repeat(repeats=nxt_hidden.shape[1], axis=1))
+    nxt_args = inject_noise(nxt_args, self.noise_vectors, self.noise_mode, random_key, i,
+                              lengths.reshape(-1,1).repeat(repeats=nxt_args.shape[1], axis=1))
 
     if not repred:      # dropout only on training
-      nxt_hidden = hk.dropout(hk.next_rng_key(), self._dropout_prob, nxt_hidden)
+      # Same reasoning as before
+      random_key = hk.next_rng_key()
+      nxt_hidden = hk.dropout(random_key, self._dropout_prob, nxt_hidden)
+      nxt_args = hk.dropout(random_key, self._dropout_prob, nxt_args)
 
     if self.use_lstm:
       # lstm doesn't accept multiple batch dimensions (in our case, batch and
       # nodes), so we vmap over the (first) batch dimension.
       nxt_hidden, nxt_lstm_state = jax.vmap(self.lstm)(nxt_hidden, lstm_state)
+      # TODO: Make appropiate changes if the lstm is used with arg propagation
+      raise ValueError("LSTM not supported to prevent discrepancies between embeddings and arguments.")
     else:
       nxt_lstm_state = None
 
@@ -488,7 +503,7 @@ class Net(hk.Module):
     # features = dict(node=nxt_hidden)
     # features = dict(graph=jnp.mean(nxt_hidden, axis=-2))
     features = {}
-    return nxt_hidden, output_preds, hint_preds, nxt_lstm_state, features, aggregated_asyncrony_information
+    return nxt_hidden, nxt_args, output_preds, hint_preds, nxt_lstm_state, features, aggregated_asyncrony_information
 
 
 class NetChunked(Net):

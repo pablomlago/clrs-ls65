@@ -157,7 +157,8 @@ class BaselineModel(model.Model):
       nb_msg_passing_steps: int = 1,
       noise_mode: str = 'Noisefree',
       decay: float = 1.0,
-      regularisation_weight: float = 0.0,
+      regularisation_weight_l2: float = 0.0,
+      regularisation_weight_l3: float = 0.0,
       bound_regularisation_loss: bool = False,
       max_proportion_regularisation: float = 0.0,
   ):
@@ -228,7 +229,8 @@ class BaselineModel(model.Model):
       self.opt = optax.adam(learning_rate)
 
     self.nb_msg_passing_steps = nb_msg_passing_steps
-    self.regularisation_weight = regularisation_weight
+    self.regularisation_weight_l2 = regularisation_weight_l2
+    self.regularisation_weight_l3 = regularisation_weight_l3
     self.bound_regularisation_loss = bound_regularisation_loss
     self.max_proportion_regularisation = max_proportion_regularisation
 
@@ -344,10 +346,17 @@ class BaselineModel(model.Model):
         return_all_features=return_all_features)
     
     # Calculate mse_loss on validation
-    jax.debug.print("[DEBUG-VAL] Regularised loss: {reg_loss}, Regularisation weight: {reg_weight}, MSE loss: {mse_loss}", 
-                    reg_loss=asynchrony_information.l2_loss * self.regularisation_weight, 
-                    reg_weight=self.regularisation_weight, 
-                    mse_loss=asynchrony_information.l2_loss,
+    jax.debug.print(
+      ("[DEBUG-VAL] L2_loss: {l2_loss}, L2_regularisation_weight: {l2_reg_weight}, "
+        "L3_loss: {l3_loss}, L3_regularisation_weight: {l3_reg_weight}, "
+        "L3_cocycle_loss: {l3_cocycle_loss}, L3_multimorphism_loss: {l3_multimorphism_loss}"
+      ),
+      l2_loss=asynchrony_information.l2_loss,
+      l2_reg_weight=self.regularisation_weight_l2,
+      l3_loss=(asynchrony_information.l3_cocycle_loss+asynchrony_information.l3_multimorphism_loss)/2.,
+      l3_reg_weight=self.regularisation_weight_l3,
+      l3_cocycle_loss=asynchrony_information.l3_cocycle_loss,
+      l3_multimorphism_loss=asynchrony_information.l3_multimorphism_loss,
     )
 
     outs = decoders.postprocess(self._spec[algorithm_index],
@@ -448,16 +457,25 @@ class BaselineModel(model.Model):
             nb_nodes=nb_nodes,
         )
 
+    # Calculate regularisation loss components
+    regularisation_loss_l2 = self.regularisation_weight_l2 * asynchrony_information.l2_loss
+    regularisation_loss_l3 = self.regularisation_weight_l3 * (asynchrony_information.l3_cocycle_loss + asynchrony_information.l3_multimorphism_loss)/2.
     # TODO: Remove once validated, as it impacts performance
-    regularisation_loss = self.regularisation_weight * asynchrony_information.l2_loss
-    jax.debug.print("[DEBUG] Regularised loss: {reg_loss}, Regularisation weight: {reg_weight}, MSE loss: {mse_loss}, Quality loss: {quality_loss}", 
-                    reg_loss=regularisation_loss, 
-                    reg_weight=self.regularisation_weight, 
-                    mse_loss=asynchrony_information.l2_loss,
-                    quality_loss=total_loss,
+    jax.debug.print(
+      ("[DEBUG] Quality_loss: {quality_loss}, L2_loss: {l2_loss}, L2_regularisation_weight: {l2_reg_weight}, "
+        "L3_loss: {l3_loss}, L3_regularisation_weight: {l3_reg_weight}, "
+        "L3_cocycle_loss: {l3_cocycle_loss}, L3_multimorphism_loss: {l3_multimorphism_loss}"
+      ),
+      quality_loss=total_loss,
+      l2_loss=asynchrony_information.l2_loss,
+      l2_reg_weight=self.regularisation_weight_l2,
+      l3_loss=(asynchrony_information.l3_cocycle_loss+asynchrony_information.l3_multimorphism_loss)/2.,
+      l3_reg_weight=self.regularisation_weight_l3,
+      l3_cocycle_loss=asynchrony_information.l3_cocycle_loss,
+      l3_multimorphism_loss=asynchrony_information.l3_multimorphism_loss,
     )
 
-    return total_loss + regularisation_loss
+    return total_loss + regularisation_loss_l2 + regularisation_loss_l3
 
   def _update_params(self, params, grads, opt_state, algorithm_index):
     updates, opt_state = filter_null_grads(

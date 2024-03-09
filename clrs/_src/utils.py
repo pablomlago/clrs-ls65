@@ -67,6 +67,15 @@ def sample_nodes(batch_size, num_nodes, adj_mat, num_samples, seed=None):
     # Generate random indices
     # random_indices shape will be [B, num_samples], with values in range [0, N)
     mask_1 = random.randint(subkey, (batch_size, num_samples), minval=0, maxval=num_nodes)
+
+    # Change the seed again, otherwise the same nodes as in mask_1 will be sampled
+    if seed is not None:
+      key = random.PRNGKey(seed)  # PRNG key for reproducibility
+      key, subkey = random.split(key)
+    else:
+      subkey = hk.next_rng_key()
+    # TODO: Ensure that the messages come from nodes in the neighbourhood
+
     mask_2 = random.randint(subkey, (batch_size, num_samples), minval=0, maxval=num_nodes)
 
     return mask_1, mask_2

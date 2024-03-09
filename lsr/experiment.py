@@ -109,6 +109,10 @@ def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndar
 
   samples, mp_steps, dim = data.shape
 
+  # standard_scaler = StandardScaler()
+  # data = data.reshape((samples * mp_steps, dim))
+  # data = standard_scaler.fit_transform(data)
+
   pca = PCA()
   pca.fit(data.reshape((samples * mp_steps, dim)))
   stepwise_global = pca.transform(data.reshape((samples * mp_steps, dim)))

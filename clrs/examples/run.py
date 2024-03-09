@@ -110,8 +110,8 @@ flags.DEFINE_enum('processor_type', 'triplet_mpnn',
                    'gat', 'gatv2', 'gat_full', 'gatv2_full',
                    'gpgn', 'gpgn_mask', 'gmpnn',
                    'triplet_gpgn', 'triplet_gpgn_mask', 'triplet_gmpnn', 
-                   'mpnn_l1', 'mpnn_l1_max', 'mpnn_l1_residual', 'mpnn_l1_regularised', 
-                   'mpnn_l1_regularised_max', 'mpnn_l2', 'mpnn_l3'],
+                   'mpnn_l1', 'mpnn_l1_max', 'mpnn_l2', 'mpnn_l3',
+                   'mpnn_l2_l3', 'mpnn_l2_l3_max', 'mpnn_l1_l3', 'mpnn_l1_l3_max'],
                   'Processor type to use as the network P.')
 
 flags.DEFINE_string('checkpoint_path', '/tmp/CLRS30_v1.0.0',
@@ -136,8 +136,10 @@ flags.DEFINE_boolean('softmax_reduction', False, 'Use softmax reduction in proce
 ####
 # Asynchrony flags
 ####
-flags.DEFINE_float('regularisation_weight', 0.0,
-                   'Weight given to regularisation loss')
+flags.DEFINE_float('regularisation_weight_l2', 0.0,
+                   'Weight given to the L2 regularisation loss')
+flags.DEFINE_float('regularisation_weight_l3', 0.0,
+                   'Weight given to the L3 regularisation loss')
 flags.DEFINE_boolean('bound_regularisation_loss', False,
                      'Whether to bound the regularisation loss to not grow too much in the early stages of training.')
 flags.DEFINE_float('max_proportion_regularisation', 0.2,
@@ -145,7 +147,7 @@ flags.DEFINE_float('max_proportion_regularisation', 0.2,
 
 flags.DEFINE_integer('num_messages_sample', 2,
                    'Number of messages to sample for each node to compute asynchrony losses.')
-flags.DEFINE_integer('num_nodes_sample', 2,
+flags.DEFINE_integer('num_nodes_sample', 8,
                    'Number of nodes to sample to compute asynchrony losses.')
 
 
@@ -533,7 +535,8 @@ def main(unused_argv):
       nb_msg_passing_steps=FLAGS.nb_msg_passing_steps,
       noise_mode=FLAGS.noise_injection_strategy,
       decay=FLAGS.decay,
-      regularisation_weight=FLAGS.regularisation_weight,
+      regularisation_weight_l2=FLAGS.regularisation_weight_l2,
+      regularisation_weight_l3=FLAGS.regularisation_weight_l3,
       bound_regularisation_loss=FLAGS.bound_regularisation_loss,
       max_proportion_regularisation=FLAGS.max_proportion_regularisation,
       )
