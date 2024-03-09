@@ -9,6 +9,7 @@ venv/
 # Trajectory files
 *.npz
 *.pkl
+*.zip
 
 # Mac OS
 .DS_Store

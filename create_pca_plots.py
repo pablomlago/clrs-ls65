@@ -9,7 +9,7 @@ from lsr.experiment import run_experiment
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = [0, 1, 2, 3, 4, 5, 6, 7]
+experiments_to_run = [4, 5, 6]
 ###################################################
 # No need to change anything below here
 ###################################################
@@ -30,7 +30,13 @@ with open(experiment_file_name, "r") as experiment_file:
         # Skip processing experiments which are not intended to be run
         if int(experiment_id) not in experiments_to_run:
             continue
+
+        print(f'Processing experiment {experiment_id}...')
         
         # Iterating over the JSON is not strictly needed but it's just in case some configuration
         # needs to be extracted from it.
-        run_experiment(path=f"{checkpoints_folder}/{experiment_id}/")
+        try:
+            run_experiment(path=f"{checkpoints_folder}/{experiment_id}/")
+        except Exception as exc:
+            print(exc)
+            print(f'Error while creating {experiment_id}...')

@@ -109,13 +109,9 @@ def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndar
 
   samples, mp_steps, dim = data.shape
 
-  # standard_scaler = StandardScaler()
-  data = data.reshape((samples * mp_steps, dim))
-  # data = standard_scaler.fit_transform(data)
-
   pca = PCA()
-  pca.fit(np.unique(data, axis=0))
-  stepwise_global = pca.transform(data)
+  pca.fit(data.reshape((samples * mp_steps, dim)))
+  stepwise_global = pca.transform(data.reshape((samples * mp_steps, dim)))
   stepwise_global: np.ndarray
   stepwise_global = stepwise_global.reshape((samples, mp_steps, -1))
   assert stepwise_global.shape == (samples, mp_steps, min(samples * mp_steps, dim))
@@ -186,9 +182,6 @@ def plot_stepwise_local(data, paths_drawn, sample_len, path="./", prefix='defaul
 def plot_stepwise_local_asynchrony(data, paths_drawn, sample_len, path="./", prefix='default'):
 
   samples, mp_steps, dim = data[0].shape
-
-  print(data[0].shape)
-  print(data[1].shape)
 
   data_1, data_2 = data
 
@@ -269,6 +262,7 @@ def run_experiment(path: str, paths_drawn=100):
   l2_node_updates_aggregated = l2_node_updates_aggregated[true_lengths == max_length_i, :max_length_i, :]
   l2_node_updates_partial = l2_node_updates_partial[true_lengths == max_length_i, :max_length_i, :]
   true_lengths = true_lengths[true_lengths == max_length_i]  
+
   # means = np.mean(data, axis=0)
   # mean_adjusted_data = data - means[np.newaxis, ...]
   # plot_stepwise_global(mean_adjusted_data, paths_drawn, true_lengths, name, 'mean')
