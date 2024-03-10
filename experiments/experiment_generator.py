@@ -7,7 +7,8 @@ from pathlib import Path
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = list(range(55,103))
+experiments_to_run = list(range(173,193))
+test_flag = "False"
 ###################################################
 # No need to change anything below here
 ###################################################
@@ -40,6 +41,7 @@ with open(experiment_file_name, "r") as experiment_file:
             continue
         experiment_options = (f"--checkpoint_path {checkpoints_folder}/{experiment_id} "
                               f"--dataset_path {datasets_folder}/{experiment_id} "
+                              f"--test {test_flag}"
                               )
         for key, value in experiment_args.items():
             if type(value) == bool:

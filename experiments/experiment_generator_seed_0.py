@@ -41,8 +41,7 @@ with open(experiment_file_name, "r") as experiment_file:
             continue
         experiment_options = (f"--checkpoint_path {checkpoints_folder}/{experiment_id} "
                               f"--dataset_path {datasets_folder}/{experiment_id} "
-                              f"--enforce_pred_as_input {False}"
-                              f"--seed {0}"
+                              f"--seed {43}"
                               f"--test {test_flag}"
                               )
         for key, value in experiment_args.items():
