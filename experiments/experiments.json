@@ -604,6 +604,48 @@
         "algorithms": "bellman_ford",
         "regularisation_weight_l2": 0.5,
         "regularisation_weight_l3": 0.5
+    },
+    "187": {
+        "processor_type": "mpnn_l1",
+        "algorithms": "bellman_ford",
+        "regularisation_weight_l2": 0.0,
+        "regularisation_weight_l3": 0.0,
+        "use_ln": "True"
+    },
+    "188": {
+        "processor_type": "mpnn_l1",
+        "algorithms": "bellman_ford",
+        "regularisation_weight_l2": 0.001,
+        "regularisation_weight_l3": 0.0,
+        "use_ln": "True"
+    },
+    "189": {
+        "processor_type": "mpnn_l1",
+        "algorithms": "bellman_ford",
+        "regularisation_weight_l2": 0.01,
+        "regularisation_weight_l3": 0.0,
+        "use_ln": "True"
+    },
+    "190": {
+        "processor_type": "mpnn_l1",
+        "algorithms": "bellman_ford",
+        "regularisation_weight_l2": 0.1,
+        "regularisation_weight_l3": 0.0,
+        "use_ln": "True"
+    },
+    "191": {
+        "processor_type": "mpnn_l1",
+        "algorithms": "bellman_ford",
+        "regularisation_weight_l2": 1,
+        "regularisation_weight_l3": 0.0,
+        "use_ln": "True"
+    },
+    "192": {
+        "processor_type": "mpnn_l1",
+        "algorithms": "bellman_ford",
+        "regularisation_weight_l2": 10,
+        "regularisation_weight_l3": 0.0,
+        "use_ln": "True"
     }
     
 }
