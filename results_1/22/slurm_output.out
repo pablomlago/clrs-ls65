@@ -1,0 +1,14 @@
+Changed directory to /rds/user/ar2217/hpc-work/L65/clrs-ls65.
+
+JobID: 22
+======
+Time: Sat Mar  2 18:56:25 GMT 2024
+Running on master node: gpu-q-2
+Current directory: /rds/user/ar2217/hpc-work/L65/clrs-ls65
+
+numtasks=1, numnodes=1, mpi_tasks_per_node=1 (OMP_NUM_THREADS=1)
+
+Executing command:
+==================
+python -m clrs.examples.run --checkpoint_path ./results_1/22 --dataset_path ./datasets_1/22 --seed 44 --processor_type mpnn_l1_regularised --algorithms bellman_ford --regularisation_weight 0.1 > results_1/22/experiment_log.out
+
