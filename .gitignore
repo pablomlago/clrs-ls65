@@ -28,6 +28,10 @@ results/
 datasets/
 datasets_0/
 results_0/
+datasets_1/
+results_1/
+datasets_2/
+results_2/
 slurm.*
 slurm_l65_gpu_template_experiment_*
 machine.file.*
