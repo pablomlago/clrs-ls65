@@ -29,9 +29,9 @@
 #! interrupted by node failure or system downtime):
 ##SBATCH --no-requeue
 #! Name of the output file
-#SBATCH --output=results/{{experiment_id}}/slurm_output.out
+#SBATCH --output=results/{{experiment_id}}/slurm_output{{test}}.out
 #! Name of the error file
-#SBATCH --error=results/{{experiment_id}}/slurm_experiment.out
+#SBATCH --error=results/{{experiment_id}}/slurm_experiment{{test}}.out
 
 #! Do not change:
 #SBATCH -p ampere
@@ -100,7 +100,7 @@ np=$[${numnodes}*${mpi_tasks_per_node}]
 cd $workdir
 echo -e "Changed directory to `pwd`.\n"
 JOBID={{experiment_id}}
-CMD="$application $options > results/{{experiment_id}}/experiment_log.out"
+CMD="$application $options > results/{{experiment_id}}/experiment_log{{test}}.out"
 
 echo -e "JobID: $JOBID\n======"
 echo "Time: `date`"
