@@ -183,7 +183,7 @@ def plot_stepwise_local(data, paths_drawn, sample_len, path="./", prefix='defaul
   fig.tight_layout()
   fig.savefig(f"{path}/{prefix}_stepwise_local.png", dpi=300)
 
-def plot_stepwise_local_asynchrony(data, paths_drawn, sample_len, path="./", name='l', prefix='default'):
+def plot_stepwise_local_asynchrony(data, paths_drawn, sample_len, path="./", prefix='default'):
 
   samples, mp_steps, dim = data[0].shape
 
@@ -234,7 +234,7 @@ def plot_stepwise_local_asynchrony(data, paths_drawn, sample_len, path="./", nam
               color='green', alpha=0.6, lw=0.1)
 
   fig.tight_layout()
-  fig.savefig(f"{path}/{prefix}_stepwise_local_embeddings_{name}.png", dpi=300)
+  fig.savefig(f"{path}/{prefix}_stepwise_local_embeddings.png", dpi=300)
 
 def run_experiment(path: str, paths_drawn=100):
 
@@ -295,9 +295,9 @@ def run_experiment(path: str, paths_drawn=100):
 
   plot_stepwise_global(data, paths_drawn, true_lengths, path)
   plot_stepwise_local(data, paths_drawn, true_lengths, path)
-  plot_stepwise_local_asynchrony([l2_node_updates_aggregated, l2_node_updates_partial], paths_drawn, true_lengths, 'l2', path)
-  plot_stepwise_local_asynchrony([l3_cocycle_args_update_aggregated, l3_cocycle_args_update_aggregated_partial], paths_drawn, true_lengths, 'l3_cocycle', path)
-  plot_stepwise_local_asynchrony([l3_multimorphism_msgs_aggregated, l3_multimorphism_msgs_partial], paths_drawn, true_lengths, 'l3_multimorphism', path)
+  plot_stepwise_local_asynchrony([l2_node_updates_aggregated, l2_node_updates_partial], paths_drawn, true_lengths, path, 'l2')
+  plot_stepwise_local_asynchrony([l3_cocycle_args_update_aggregated, l3_cocycle_args_update_aggregated_partial], paths_drawn, true_lengths, path, 'l3_cocycle')
+  plot_stepwise_local_asynchrony([l3_multimorphism_msgs_aggregated, l3_multimorphism_msgs_partial], paths_drawn, true_lengths, path, 'l3_multimorphism')
 
   return
   a = 4
