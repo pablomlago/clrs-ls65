@@ -314,6 +314,15 @@ def fill_trajectories(trajs):
   trajs = [jax.numpy.concatenate([x, jax.numpy.repeat(x[-1:, ...], n - x.shape[0], axis=0)], axis=0) if n - x.shape[0] > 0 else x for x in trajs]
   return trajs
 
+def process_trajectories(trajs):
+  trajs = _concat(fill_trajectories(trajs), axis=1)
+  # Reduce over the node dimension
+  trajs = jax.numpy.max(trajs, axis=2)
+  # The dimensions are T x N x D
+  trajs = trajs.transpose(1,0,2)
+  return trajs
+
+
 def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   """Dump trajectories of datapoints"""
   processed_samples = 0
@@ -325,6 +334,10 @@ def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   hints = []
   l2_node_updates_partial = []
   l2_node_updates_aggregated = []
+  l3_cocycle_args_update_aggregated = []
+  l3_cocycle_args_update_aggregated_partial = []
+  l3_multimorphism_msgs_aggregated = []
+  l3_multimorphism_msgs_partial = []
   while processed_samples < sample_count:
     feedback = next(sampler)
     batch_size = feedback.outputs[0].data.shape[0]
@@ -337,29 +350,26 @@ def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
     trajs.append(cur_trajs)
     l2_node_updates_partial.append(asynchrony_information.l2_node_update_partial)
     l2_node_updates_aggregated.append(asynchrony_information.l2_node_update_aggregated)
+    l3_cocycle_args_update_aggregated.append(asynchrony_information.l3_cocycle_args_update_aggregated)
+    l3_cocycle_args_update_aggregated_partial.append(asynchrony_information.l3_cocycle_args_update_aggregated_partial)
+    l3_multimorphism_msgs_aggregated.append(asynchrony_information.l3_multimorphism_msgs_aggregated)
+    l3_multimorphism_msgs_partial.append(asynchrony_information.l3_multimorphism_msgs_partial)
     inputs.append(feedback)
     lengths.append(feedback.features[2])
     processed_samples += batch_size
   preds = _concat(preds, axis=0)
   outputs = _concat(outputs, axis=0)
-  trajs = _concat(fill_trajectories(trajs), axis=1)
-  # Reduce over the node dimension
-  trajs = jax.numpy.max(trajs, axis=2)
-  # The dimensions are T x N x D
-  trajs = trajs.transpose(1,0,2)
+  # Process elements to be saved
+  trajs = process_trajectories(trajs)
 
-  # Aggregate information for assynchrony embeddings
-  l2_node_updates_partial = _concat(fill_trajectories(l2_node_updates_partial), axis=1)
-  # Reduce over the node dimension
-  l2_node_updates_partial = jax.numpy.max(l2_node_updates_partial, axis=2)
-  # The dimensions are T x N x D
-  l2_node_updates_partial = l2_node_updates_partial .transpose(1,0,2)
+  l2_node_updates_partial = process_trajectories(l2_node_updates_partial)
+  l2_node_updates_aggregated = process_trajectories(l2_node_updates_aggregated)
 
-  l2_node_updates_aggregated = _concat(fill_trajectories(l2_node_updates_aggregated), axis=1)
-  # Reduce over the node dimension
-  l2_node_updates_aggregated = jax.numpy.max(l2_node_updates_aggregated, axis=2)
-  # The dimensions are T x N x D
-  l2_node_updates_aggregated = l2_node_updates_aggregated.transpose(1,0,2)
+  l3_cocycle_args_update_aggregated = process_trajectories(l3_cocycle_args_update_aggregated)
+  l3_cocycle_args_update_aggregated_partial = process_trajectories(l3_cocycle_args_update_aggregated_partial)
+
+  l3_multimorphism_msgs_aggregated = process_trajectories(l3_multimorphism_msgs_aggregated)
+  l3_multimorphism_msgs_partial = process_trajectories(l3_multimorphism_msgs_partial)
 
   hints = _concat(fill(hints), axis=0)
   inputs = _concat(inputs, axis=0)
@@ -368,7 +378,21 @@ def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   # graph_fts = jax.numpy.asarray([d['node'] for d in trajs]).transpose(1, 2, 0, 3)
   # graph_fts = jax.numpy.asarray([d['graph'] for d in trajs]).transpose(1, 0, 2)
   graph_fts = np.zeros_like(lengths)
-  return lengths, trajs, out, inputs, preds, hints, l2_node_updates_partial, l2_node_updates_aggregated 
+  return (
+    lengths, 
+    trajs, 
+    out, 
+    inputs, 
+    preds, 
+    hints, 
+    l2_node_updates_partial, 
+    l2_node_updates_aggregated,
+    l3_cocycle_args_update_aggregated,
+    l3_cocycle_args_update_aggregated_partial,
+    l3_multimorphism_msgs_aggregated,
+    l3_multimorphism_msgs_partial,
+  )
+
 
 
 def create_samplers(rng, train_lengths: List[int]):
@@ -703,7 +727,14 @@ def main(unused_argv):
 
   for algo_idx in range(len(special_samplers)):
     new_rng_key, rng_key = jax.random.split(rng_key)
-    lengths, trajs, stats, feedback, preds, hints, l2_node_updates_partial, l2_node_updates_aggregated = dump_trajectories(
+    (lengths, trajs, stats, feedback, preds, hints, 
+     l2_node_updates_partial, 
+     l2_node_updates_aggregated,
+     l3_cocycle_args_update_aggregated,
+     l3_cocycle_args_update_aggregated_partial,
+     l3_multimorphism_msgs_aggregated,
+     l3_multimorphism_msgs_partial,
+    ) = dump_trajectories(
         special_samplers[algo_idx],
         functools.partial(specil_model.predict, algorithm_index=algo_idx, return_all_features=True),
         special_sample_counts[algo_idx],
@@ -719,6 +750,10 @@ def main(unused_argv):
                   'hints': hints,
                   'l2_node_updates_partial': l2_node_updates_partial,
                   'l2_node_updates_aggregated': l2_node_updates_aggregated,
+                  'l3_cocycle_args_update_aggregated': l3_cocycle_args_update_aggregated,
+                  'l3_cocycle_args_update_aggregated_partial': l3_cocycle_args_update_aggregated_partial,
+                  'l3_multimorphism_msgs_aggregated': l3_multimorphism_msgs_aggregated,
+                  'l3_multimorphism_msgs_partial': l3_multimorphism_msgs_partial,
                   }
 
   np.savez(f"{FLAGS.checkpoint_path}/trajs.npz", **trajs_dump)
