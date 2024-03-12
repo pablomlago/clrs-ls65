@@ -322,6 +322,14 @@ def process_trajectories(trajs):
   trajs = trajs.transpose(1,0,2)
   return trajs
 
+def process_messages(trajs):
+  trajs = _concat(fill_trajectories(trajs), axis=1)
+  # Reduce over the node dimension
+  trajs = jax.numpy.max(trajs, axis=(2,3))
+  # The dimensions are T x N x D
+  trajs = trajs.transpose(1,0,2)
+  return trajs
+
 
 def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   """Dump trajectories of datapoints"""
@@ -368,8 +376,8 @@ def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
   l3_cocycle_args_update_aggregated = process_trajectories(l3_cocycle_args_update_aggregated)
   l3_cocycle_args_update_aggregated_partial = process_trajectories(l3_cocycle_args_update_aggregated_partial)
 
-  l3_multimorphism_msgs_aggregated = process_trajectories(l3_multimorphism_msgs_aggregated)
-  l3_multimorphism_msgs_partial = process_trajectories(l3_multimorphism_msgs_partial)
+  l3_multimorphism_msgs_aggregated = process_messages(l3_multimorphism_msgs_aggregated)
+  l3_multimorphism_msgs_partial = process_messages(l3_multimorphism_msgs_partial)
 
   hints = _concat(fill(hints), axis=0)
   inputs = _concat(inputs, axis=0)
