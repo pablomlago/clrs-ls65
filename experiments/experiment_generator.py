@@ -7,7 +7,7 @@ from pathlib import Path
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = list(range(173,193))
+experiments_to_run = list(range(173,187))
 test_flag = True
 ###################################################
 # No need to change anything below here

@@ -9,7 +9,7 @@ from lsr.experiment import run_experiment
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = [186]
+experiments_to_run = list(range(173,187))
 ###################################################
 # No need to change anything below here
 ###################################################
