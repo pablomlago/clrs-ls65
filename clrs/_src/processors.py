@@ -36,6 +36,10 @@ class AsynchronyInformation:
   l3_multimorphism_loss: chex.Array
   l2_node_update_aggregated: Optional[chex.Array]
   l2_node_update_partial: Optional[chex.Array]
+  l3_cocycle_args_update_aggregated: Optional[chex.Array]
+  l3_cocycle_args_update_aggregated_partial: Optional[chex.Array]
+  l3_multimorphism_msgs_aggregated: Optional[chex.Array]
+  l3_multimorphism_msgs_partial: Optional[chex.Array]
 
 def aggregate_asynchrony_information(
     aggregated_asynchrony_information: Optional[AsynchronyInformation], 
@@ -49,9 +53,15 @@ def aggregate_asynchrony_information(
     l2_loss=aggregated_asynchrony_information.l2_loss + new_asynchrony_information.l2_loss,
     l3_cocycle_loss=aggregated_asynchrony_information.l3_cocycle_loss + new_asynchrony_information.l3_cocycle_loss,
     l3_multimorphism_loss=aggregated_asynchrony_information.l3_multimorphism_loss + new_asynchrony_information.l3_multimorphism_loss,
-    # Embeddings to create asynchrony visualizations
+    # Embeddings to create L2 asynchrony visualizations
     l2_node_update_aggregated=new_asynchrony_information.l2_node_update_aggregated,
     l2_node_update_partial=new_asynchrony_information.l2_node_update_partial,
+    # Embeddings to create L3 cocycle visualisations
+    l3_cocycle_args_update_aggregated=new_asynchrony_information.l3_cocycle_args_update_aggregated,
+    l3_cocycle_args_update_aggregated_partial=new_asynchrony_information.l3_cocycle_args_update_aggregated_partial,
+    # Embeddings to create L3 multimorphism visualisations
+    l3_multimorphism_msgs_aggregated=new_asynchrony_information.l3_multimorphism_msgs_aggregated,
+    l3_multimorphism_msgs_partial=new_asynchrony_information.l3_multimorphism_msgs_partial,
   )
 
 _Array = chex.Array
@@ -171,7 +181,9 @@ def compute_asynchrony_losses(
 
   # The shape of node_update_partial_steps is [num_messages_sample, B, N, H], so need to
   # reduce over leading dimension
-  l3_cocycle_loss = jnp.mean((args_update_aggregated - arg_reduction_fn(args_update_partial_steps, axis=0))**2)
+  args_update_aggregated_partial = arg_reduction_fn(args_update_partial_steps, axis=0)
+  # Cocycle loss computation
+  l3_cocycle_loss = jnp.mean((args_update_aggregated - args_update_aggregated_partial)**2)
 
   #######
   ## Computation of the L3 multimorphism loss
@@ -259,6 +271,10 @@ def compute_asynchrony_losses(
     # Expand across first dimension to concatenate over steps
     l2_node_update_aggregated=node_update_aggregated,
     l2_node_update_partial=node_update_partial,
+    l3_cocycle_args_update_aggregated=args_update_aggregated,
+    l3_cocycle_args_update_aggregated_partial=args_update_aggregated_partial,
+    l3_multimorphism_msgs_aggregated=msgs_aggregated_receivers+msgs_aggregated_senders,
+    l3_multimorphism_msgs_partial=msgs_partial_receivers+msgs_partial_senders,
   )
 
 def apply_msg_reduction(msg_reduction_fn: _Fn, msgs: _Array, adj_mat: _Array):

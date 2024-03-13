@@ -53,6 +53,7 @@ def plot_heatmap_trajwise_old(data, name):
   fig.suptitle(f"Trajectory-wise PCA components heatmap")
   fig.tight_layout()
   fig.savefig(f"{name}_heatmap.png", dpi=300)
+  plt.close()
 
 
 def plot_heatmap_trajwise(data, path="./"):
@@ -78,13 +79,14 @@ def plot_heatmap_trajwise(data, path="./"):
   fig.suptitle(f"Trajectory-wise PCA components heatmap")
   fig.tight_layout()
   fig.savefig(f"{path}/trajwise_heatmap.png", dpi=300)
+  plt.close()
 
 def plot_trajwise(data, score, path ="./", prefix = 'default'):
   samples, mp_steps, dim = data.shape
 
-  # standard_scaler = StandardScaler()
+  standard_scaler = StandardScaler()
   data = data.reshape(samples, mp_steps * dim)
-  # data = standard_scaler.fit_transform(data)
+  data = standard_scaler.fit_transform(data)
 
   trajwise_pca = PCA()
   trajwise = trajwise_pca.fit_transform(data)
@@ -103,19 +105,20 @@ def plot_trajwise(data, score, path ="./", prefix = 'default'):
                f"{get_pca_evr(trajwise_pca, 3):.2f}% explained")
   fig.tight_layout()
   fig.savefig(f"{path}/{prefix}_trajwise.png", dpi=300)
+  plt.close()
 
 
 def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndarray, path="./", prefix = 'default'):
 
   samples, mp_steps, dim = data.shape
 
-  # standard_scaler = StandardScaler()
-  # data = data.reshape((samples * mp_steps, dim))
-  # data = standard_scaler.fit_transform(data)
+  standard_scaler = StandardScaler()
+  data = data.reshape((samples * mp_steps, dim))
+  data = standard_scaler.fit_transform(data)
 
   pca = PCA()
-  pca.fit(data.reshape((samples * mp_steps, dim)))
-  stepwise_global = pca.transform(data.reshape((samples * mp_steps, dim)))
+  pca.fit(data)
+  stepwise_global = pca.transform(data)
   stepwise_global: np.ndarray
   stepwise_global = stepwise_global.reshape((samples, mp_steps, -1))
   assert stepwise_global.shape == (samples, mp_steps, min(samples * mp_steps, dim))
@@ -150,19 +153,22 @@ def plot_stepwise_global(data: np.ndarray, paths_drawn: int, sample_len: np.ndar
 
   fig.tight_layout()
   fig.savefig(f"{path}/{prefix}_stepwise_global.png", dpi=300)
+  plt.close()
 
 
 def plot_stepwise_local(data, paths_drawn, sample_len, path="./", prefix='default'):
 
   samples, mp_steps, dim = data.shape
 
+  standard_scalers = [StandardScaler().fit(data[sample_len >= step, step, :]) for step in range(mp_steps)]
+  data_steps = [standard_scalers[step].transform(data[:, step, :]) for step in range(mp_steps)]
   # data = data.reshape(-1, mp_steps * dim)
   # standard_scaler = StandardScaler()
   # data = standard_scaler.fit_transform(data)
   # data = data.reshape(samples, mp_steps, dim)
 
-  pcas = [PCA(n_components=3).fit(data[sample_len >= step, step, :]) for step in range(mp_steps)]
-  stepwise_local = np.array([pcas[step].transform(data[:, step, :]) for step in range(mp_steps)])
+  pcas = [PCA(n_components=3).fit(data_steps[step][sample_len >= step, :]) for step in range(mp_steps)]
+  stepwise_local = np.array([pcas[step].transform(data_steps[step]) for step in range(mp_steps)])
   assert stepwise_local.shape == (mp_steps, samples, 3)
 
   SCALE_FACTOR = 2 + mp_steps
@@ -182,6 +188,7 @@ def plot_stepwise_local(data, paths_drawn, sample_len, path="./", prefix='defaul
 
   fig.tight_layout()
   fig.savefig(f"{path}/{prefix}_stepwise_local.png", dpi=300)
+  plt.close()
 
 def plot_stepwise_local_asynchrony(data, paths_drawn, sample_len, path="./", prefix='default'):
 
@@ -194,7 +201,7 @@ def plot_stepwise_local_asynchrony(data, paths_drawn, sample_len, path="./", pre
   # data = standard_scaler.fit_transform(data)
   # data = data.reshape(samples, mp_steps, dim)
 
-  pcas = [PCA(n_components=3).fit(np.concatenate(data, axis=1)[sample_len >= step, step, :]) for step in range(mp_steps)]
+  pcas = [PCA(n_components=3).fit(np.concatenate([data_1[sample_len >= step, step, :], data_2[sample_len >= step, step, :]], axis=0)) for step in range(mp_steps)]
 
   data = data_1
 
@@ -235,6 +242,7 @@ def plot_stepwise_local_asynchrony(data, paths_drawn, sample_len, path="./", pre
 
   fig.tight_layout()
   fig.savefig(f"{path}/{prefix}_stepwise_local_embeddings.png", dpi=300)
+  plt.close()
 
 def run_experiment(path: str, paths_drawn=100):
 
@@ -244,6 +252,11 @@ def run_experiment(path: str, paths_drawn=100):
   l2_node_updates_partial = data_dump['l2_node_updates_partial']
   l2_node_updates_aggregated = data_dump['l2_node_updates_aggregated']
   true_lengths = data_dump['lengths']
+
+  l3_cocycle_args_update_aggregated=data_dump['l3_cocycle_args_update_aggregated']
+  l3_cocycle_args_update_aggregated_partial=data_dump['l3_cocycle_args_update_aggregated_partial']
+  l3_multimorphism_msgs_aggregated=data_dump['l3_multimorphism_msgs_aggregated']
+  l3_multimorphism_msgs_partial=data_dump['l3_multimorphism_msgs_partial']
 
   try:
     os.mkdir(f'{path}/pca_plots')
@@ -265,6 +278,12 @@ def run_experiment(path: str, paths_drawn=100):
   score = score[true_lengths == max_length_i]
   l2_node_updates_aggregated = l2_node_updates_aggregated[true_lengths == max_length_i, :max_length_i, :]
   l2_node_updates_partial = l2_node_updates_partial[true_lengths == max_length_i, :max_length_i, :]
+
+  l3_cocycle_args_update_aggregated=l3_cocycle_args_update_aggregated[true_lengths == max_length_i, :max_length_i, :]
+  l3_cocycle_args_update_aggregated_partial=l3_cocycle_args_update_aggregated_partial[true_lengths == max_length_i, :max_length_i, :]
+  l3_multimorphism_msgs_aggregated=l3_multimorphism_msgs_aggregated[true_lengths == max_length_i, :max_length_i, :]
+  l3_multimorphism_msgs_partial=l3_multimorphism_msgs_partial[true_lengths == max_length_i, :max_length_i, :]
+
   true_lengths = true_lengths[true_lengths == max_length_i]  
 
   # means = np.mean(data, axis=0)
@@ -284,7 +303,9 @@ def run_experiment(path: str, paths_drawn=100):
 
   plot_stepwise_global(data, paths_drawn, true_lengths, path)
   plot_stepwise_local(data, paths_drawn, true_lengths, path)
-  plot_stepwise_local_asynchrony([l2_node_updates_aggregated, l2_node_updates_partial], paths_drawn, true_lengths-1, path)
+  plot_stepwise_local_asynchrony([l2_node_updates_aggregated, l2_node_updates_partial], paths_drawn, true_lengths, path, 'l2')
+  plot_stepwise_local_asynchrony([l3_cocycle_args_update_aggregated, l3_cocycle_args_update_aggregated_partial], paths_drawn, true_lengths, path, 'l3_cocycle')
+  plot_stepwise_local_asynchrony([l3_multimorphism_msgs_aggregated, l3_multimorphism_msgs_partial], paths_drawn, true_lengths, path, 'l3_multimorphism')
 
   return
   a = 4
@@ -363,6 +384,7 @@ def traj_step(data: np.ndarray,
   # fig.suptitle(f"{name}, accuracy={acc*100:.2f}%")
   fig.tight_layout()
   fig.savefig(f"{name}_ts_2d.png", dpi=300)
+  plt.close()
 
   ax3d[1].set_title(f"Step-wise PCA, evr={get_pca_evr(pca, 3):.2f}%")
   # fig3d.suptitle(f"{name}, accuracy={acc*100:.2f}%")

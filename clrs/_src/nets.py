@@ -212,6 +212,10 @@ class Net(hk.Module):
           l3_multimorphism_loss=None,
           l2_node_update_aggregated=asynchrony_information.l2_node_update_aggregated,
           l2_node_update_partial=asynchrony_information.l2_node_update_partial,
+          l3_cocycle_args_update_aggregated=asynchrony_information.l3_cocycle_args_update_aggregated,
+          l3_cocycle_args_update_aggregated_partial=asynchrony_information.l3_cocycle_args_update_aggregated_partial,
+          l3_multimorphism_msgs_aggregated=asynchrony_information.l3_multimorphism_msgs_aggregated,
+          l3_multimorphism_msgs_partial=asynchrony_information.l3_multimorphism_msgs_partial,
         )
     )
 
@@ -355,7 +359,11 @@ class Net(hk.Module):
       l3_multimorphism_loss=output_mp_state.asynchrony_information.l3_multimorphism_loss,
       # These tensors have shape [nb_mp_steps, B, N. H]
       l2_node_update_aggregated=accum_mp_state.asynchrony_information.l2_node_update_aggregated,
-      l2_node_update_partial=accum_mp_state.asynchrony_information.l2_node_update_partial
+      l2_node_update_partial=accum_mp_state.asynchrony_information.l2_node_update_partial,
+      l3_cocycle_args_update_aggregated=accum_mp_state.asynchrony_information.l3_cocycle_args_update_aggregated,
+      l3_cocycle_args_update_aggregated_partial=accum_mp_state.asynchrony_information.l3_cocycle_args_update_aggregated_partial,
+      l3_multimorphism_msgs_aggregated=accum_mp_state.asynchrony_information.l3_multimorphism_msgs_aggregated,
+      l3_multimorphism_msgs_partial=accum_mp_state.asynchrony_information.l3_multimorphism_msgs_partial,
     )
 
   def _construct_encoders_decoders(self):

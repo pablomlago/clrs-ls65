@@ -104,52 +104,28 @@ flags.DEFINE_integer('nb_triplet_fts', 8,
 flags.DEFINE_enum('encoder_init', 'xavier_on_scalars',
                   ['default', 'xavier_on_scalars'],
                   'Initialiser to use for the encoders.')
-flags.DEFINE_enum('processor_type', 'triplet_mpnn',
-                  ['deepsets', 'mpnn', 'pgn', 'pgnlin', 'pgn_mask',
+flags.DEFINE_enum('processor_type', 'triplet_gmpnn',
+                  ['deepsets', 'mpnn', 'pgn', 'pgn_mask',
                    'triplet_mpnn', 'triplet_pgn', 'triplet_pgn_mask',
                    'gat', 'gatv2', 'gat_full', 'gatv2_full',
                    'gpgn', 'gpgn_mask', 'gmpnn',
                    'triplet_gpgn', 'triplet_gpgn_mask', 'triplet_gmpnn', 
-                   'mpnn_l1', 'mpnn_l1_max', 'mpnn_l2', 'mpnn_l3',
-                   'mpnn_l2_l3', 'mpnn_l2_l3_max', 'mpnn_l1_l3', 'mpnn_l1_l3_max'],
+                   'mpnn_l1', 'mpnn_l1_max', 'mpnn_l1_residual', 'mpnn_l1_regularised', 
+                   'mpnn_l1_regularised_max', 'mpnn_l2'],
                   'Processor type to use as the network P.')
 
-flags.DEFINE_string('checkpoint_path', '/tmp/CLRS30_v1.0.0',
+flags.DEFINE_string('checkpoint_path', '/tmp/CLRS30',
                     'Path in which checkpoints are saved.')
-flags.DEFINE_string('dataset_path', '/tmp/CLRS30_v1.0.0',
+flags.DEFINE_string('dataset_path', '/tmp/CLRS30',
                     'Path in which dataset is stored.')
 flags.DEFINE_boolean('freeze_processor', False,
                      'Whether to freeze the processor of the model.')
-####
-# Latent representation flags
-####
-flags.DEFINE_boolean('test', False,
-                     'Skip training and restore best model')
-flags.DEFINE_string('sample_strat', None,
-                     'Sample augmentation strategy for Bellman Ford')
-flags.DEFINE_enum('noise_injection_strategy', 'Noisefree',
-                  ['Noisefree', 'Uniform', 'Directional', 'Project', 'Discard', 'Corrupt'],
-                  'Type of destructive noise to apply during message passing.')
-flags.DEFINE_float('decay', 1.0,
-                     'Perform exponential decay inside nets.')
-flags.DEFINE_boolean('softmax_reduction', False, 'Use softmax reduction in processor instead of max, for training.')
-####
-# Asynchrony flags
-####
-flags.DEFINE_float('regularisation_weight_l2', 0.0,
-                   'Weight given to the L2 regularisation loss')
-flags.DEFINE_float('regularisation_weight_l3', 0.0,
-                   'Weight given to the L3 regularisation loss')
+flags.DEFINE_float('regularisation_weight', 0.0,
+                   'Weight given to regularisation loss')
 flags.DEFINE_boolean('bound_regularisation_loss', False,
                      'Whether to bound the regularisation loss to not grow too much in the early stages of training.')
 flags.DEFINE_float('max_proportion_regularisation', 0.2,
                    'Regularisation loss cannot be higher than this proportion of the quality loss.')
-
-flags.DEFINE_integer('num_messages_sample', 2,
-                   'Number of messages to sample for each node to compute asynchrony losses.')
-flags.DEFINE_integer('num_nodes_sample', 8,
-                   'Number of nodes to sample to compute asynchrony losses.')
-
 
 FLAGS = flags.FLAGS
 
@@ -182,7 +158,7 @@ def _iterate_sampler(sampler, batch_size):
 
 
 def _maybe_download_dataset(dataset_path):
-  """Download CLRS30_v1.0.0 dataset if needed."""
+  """Download CLRS30 dataset if needed."""
   dataset_folder = os.path.join(dataset_path, clrs.get_clrs_folder())
   if os.path.isdir(dataset_folder):
     logging.info('Dataset found at %s. Skipping download.', dataset_folder)
@@ -245,7 +221,7 @@ def make_sampler(length: int,
     num_samples = clrs.CLRS30[split]['num_samples'] * multiplier
     sampler, spec = clrs.build_sampler(
         algorithm,
-        seed=rng.randint(2**31),
+        seed=rng.randint(2**32),
         num_samples=num_samples,
         length=length,
         **sampler_kwargs,
@@ -292,7 +268,7 @@ def collect_and_eval(sampler, predict_fn, sample_count, rng_key, extras):
     batch_size = feedback.outputs[0].data.shape[0]
     outputs.append(feedback.outputs)
     new_rng_key, rng_key = jax.random.split(rng_key)
-    cur_preds, _, trajs = predict_fn(new_rng_key, feedback.features)
+    cur_preds, _ = predict_fn(new_rng_key, feedback.features)
     preds.append(cur_preds)
     processed_samples += batch_size
   outputs = _concat(outputs, axis=0)
@@ -302,106 +278,6 @@ def collect_and_eval(sampler, predict_fn, sample_count, rng_key, extras):
     out.update(extras)
   return {k: unpack(v) for k, v in out.items()}
 
-def fill(trajs):
-  n = max([len(x) for x in trajs])
-  for x in trajs:
-    while len(x) < n:
-      x.append(x[-1])  # Duplicate last trajectory to align lengths
-  return trajs
-
-def fill_trajectories(trajs):
-  n = max([x.shape[0] for x in trajs])
-  trajs = [jax.numpy.concatenate([x, jax.numpy.repeat(x[-1:, ...], n - x.shape[0], axis=0)], axis=0) if n - x.shape[0] > 0 else x for x in trajs]
-  return trajs
-
-def process_trajectories(trajs):
-  trajs = _concat(fill_trajectories(trajs), axis=1)
-  # Reduce over the node dimension
-  trajs = jax.numpy.max(trajs, axis=2)
-  # The dimensions are T x N x D
-  trajs = trajs.transpose(1,0,2)
-  return trajs
-
-def process_messages(trajs):
-  trajs = _concat(fill_trajectories(trajs), axis=1)
-  # Reduce over the node dimension
-  trajs = jax.numpy.max(trajs, axis=(2,3))
-  # The dimensions are T x N x D
-  trajs = trajs.transpose(1,0,2)
-  return trajs
-
-
-def dump_trajectories(sampler, predict_fn, sample_count, rng_key):
-  """Dump trajectories of datapoints"""
-  processed_samples = 0
-  trajs = []
-  inputs = []
-  preds = []
-  outputs = []
-  lengths = []
-  hints = []
-  l2_node_updates_partial = []
-  l2_node_updates_aggregated = []
-  l3_cocycle_args_update_aggregated = []
-  l3_cocycle_args_update_aggregated_partial = []
-  l3_multimorphism_msgs_aggregated = []
-  l3_multimorphism_msgs_partial = []
-  while processed_samples < sample_count:
-    feedback = next(sampler)
-    batch_size = feedback.outputs[0].data.shape[0]
-    outputs.append(feedback.outputs)
-    new_rng_key, rng_key = jax.random.split(rng_key)
-    cur_preds, cur_hints, (cur_trajs, asynchrony_information) = predict_fn(new_rng_key, feedback.features,
-                                                 return_hints=True)
-    preds.append(cur_preds)
-    hints.append(cur_hints)
-    trajs.append(cur_trajs)
-    l2_node_updates_partial.append(asynchrony_information.l2_node_update_partial)
-    l2_node_updates_aggregated.append(asynchrony_information.l2_node_update_aggregated)
-    l3_cocycle_args_update_aggregated.append(asynchrony_information.l3_cocycle_args_update_aggregated)
-    l3_cocycle_args_update_aggregated_partial.append(asynchrony_information.l3_cocycle_args_update_aggregated_partial)
-    l3_multimorphism_msgs_aggregated.append(asynchrony_information.l3_multimorphism_msgs_aggregated)
-    l3_multimorphism_msgs_partial.append(asynchrony_information.l3_multimorphism_msgs_partial)
-    inputs.append(feedback)
-    lengths.append(feedback.features[2])
-    processed_samples += batch_size
-  preds = _concat(preds, axis=0)
-  outputs = _concat(outputs, axis=0)
-  # Process elements to be saved
-  trajs = process_trajectories(trajs)
-
-  l2_node_updates_partial = process_trajectories(l2_node_updates_partial)
-  l2_node_updates_aggregated = process_trajectories(l2_node_updates_aggregated)
-
-  l3_cocycle_args_update_aggregated = process_trajectories(l3_cocycle_args_update_aggregated)
-  l3_cocycle_args_update_aggregated_partial = process_trajectories(l3_cocycle_args_update_aggregated_partial)
-
-  l3_multimorphism_msgs_aggregated = process_messages(l3_multimorphism_msgs_aggregated)
-  l3_multimorphism_msgs_partial = process_messages(l3_multimorphism_msgs_partial)
-
-  hints = _concat(fill(hints), axis=0)
-  inputs = _concat(inputs, axis=0)
-  lengths = jax.numpy.array(lengths).flatten().astype(int)
-  out = clrs.evaluate_each(outputs, preds)
-  # graph_fts = jax.numpy.asarray([d['node'] for d in trajs]).transpose(1, 2, 0, 3)
-  # graph_fts = jax.numpy.asarray([d['graph'] for d in trajs]).transpose(1, 0, 2)
-  graph_fts = np.zeros_like(lengths)
-  return (
-    lengths, 
-    trajs, 
-    out, 
-    inputs, 
-    preds, 
-    hints, 
-    l2_node_updates_partial, 
-    l2_node_updates_aggregated,
-    l3_cocycle_args_update_aggregated,
-    l3_cocycle_args_update_aggregated_partial,
-    l3_multimorphism_msgs_aggregated,
-    l3_multimorphism_msgs_partial,
-  )
-
-
 
 def create_samplers(rng, train_lengths: List[int]):
   """Create all the samplers."""
@@ -410,8 +286,6 @@ def create_samplers(rng, train_lengths: List[int]):
   val_sample_counts = []
   test_samplers = []
   test_sample_counts = []
-  specil_samplers = []
-  specil_sample_counts = []
   spec_list = []
 
   for algo_idx, algorithm in enumerate(FLAGS.algorithms):
@@ -482,31 +356,16 @@ def create_samplers(rng, train_lengths: List[int]):
                        **common_sampler_args)
       test_sampler, test_samples, spec = make_multi_sampler(**test_args)
 
-
-      specil_args = dict(sizes=[64],
-                       split='test',
-                       batch_size=32,
-                       multiplier=2**9  * mult,
-                       randomize_pos=False,
-                       chunked=False,
-                       sampler_kwargs=dict(specil=FLAGS.sample_strat, force_otf=True),
-                       **common_sampler_args)
-      specil_sampler, specil_samples, spec = make_multi_sampler(**specil_args)
-
-
     spec_list.append(spec)
     train_samplers.append(train_sampler)
     val_samplers.append(val_sampler)
     val_sample_counts.append(val_samples)
     test_samplers.append(test_sampler)
     test_sample_counts.append(test_samples)
-    specil_samplers.append(specil_sampler)
-    specil_sample_counts.append(specil_samples)
 
   return (train_samplers,
           val_samplers, val_sample_counts,
           test_samplers, test_sample_counts,
-          specil_samplers, specil_sample_counts,
           spec_list)
 
 
@@ -523,32 +382,22 @@ def main(unused_argv):
   else:
     raise ValueError('Hint mode not in {encoded_decoded, decoded_only, none}.')
 
-  print(FLAGS.seed)
-  print(FLAGS.algorithms)
-  print(FLAGS.decay)
-  print(FLAGS.softmax_reduction)
-  print(FLAGS.train_steps)
-
-
   train_lengths = [int(x) for x in FLAGS.train_lengths]
 
   rng = np.random.RandomState(FLAGS.seed)
-  rng_key = jax.random.PRNGKey(rng.randint(2**31))
+  rng_key = jax.random.PRNGKey(rng.randint(2**32))
 
   # Create samplers
   (train_samplers,
    val_samplers, val_sample_counts,
    test_samplers, test_sample_counts,
-   special_samplers, special_sample_counts,
    spec_list) = create_samplers(rng, train_lengths)
 
   processor_factory = clrs.get_processor_factory(
       FLAGS.processor_type,
       use_ln=FLAGS.use_ln,
       nb_triplet_fts=FLAGS.nb_triplet_fts,
-      nb_heads=FLAGS.nb_heads,
-      num_messages_sample=FLAGS.num_messages_sample,
-      num_nodes_sample=FLAGS.num_nodes_sample,
+      nb_heads=FLAGS.nb_heads
   )
   model_params = dict(
       processor_factory=processor_factory,
@@ -565,10 +414,7 @@ def main(unused_argv):
       hint_teacher_forcing=FLAGS.hint_teacher_forcing,
       hint_repred_mode=FLAGS.hint_repred_mode,
       nb_msg_passing_steps=FLAGS.nb_msg_passing_steps,
-      noise_mode=FLAGS.noise_injection_strategy,
-      decay=FLAGS.decay,
-      regularisation_weight_l2=FLAGS.regularisation_weight_l2,
-      regularisation_weight_l3=FLAGS.regularisation_weight_l3,
+      regularisation_weight=FLAGS.regularisation_weight,
       bound_regularisation_loss=FLAGS.bound_regularisation_loss,
       max_proportion_regularisation=FLAGS.max_proportion_regularisation,
       )
@@ -587,71 +433,47 @@ def main(unused_argv):
   else:
     train_model = eval_model
 
-  if FLAGS.softmax_reduction:
-    # Modify the train model to softmax.
-    # WARN Incompatible with chunked training
-    processor_factory_softmax = clrs.get_processor_factory(
-      FLAGS.processor_type,
-      use_ln=FLAGS.use_ln,
-      nb_triplet_fts=FLAGS.nb_triplet_fts,
-      nb_heads=FLAGS.nb_heads,
-      reduction=jax.nn.softmax
-      )
-    model_params['processor_factory'] = processor_factory_softmax
-    train_model = clrs.models.BaselineModel(
-      spec=spec_list,
-      dummy_trajectory=[next(t) for t in val_samplers],
-      **model_params
-      )
+  # Training loop.
+  best_score = -1.0
+  current_train_items = [0] * len(FLAGS.algorithms)
+  step = 0
+  next_eval = 0
+  # Make sure scores improve on first step, but not overcome best score
+  # until all algos have had at least one evaluation.
+  val_scores = [-99999.9] * len(FLAGS.algorithms)
+  length_idx = 0
 
-  if FLAGS.test:
-    with open(f"{FLAGS.checkpoint_path}/best.pkl", 'rb') as file:
-      import pickle
-      best = pickle.load(file)
-      eval_model.params = best['params']
-      eval_model.opt_state = best['opt_state']
-  else:
-    # Training loop.
-    best_score = -1.0
-    current_train_items = [0] * len(FLAGS.algorithms)
-    step = 0
-    next_eval = 0
-    # Make sure scores improve on first step, but not overcome best score
-    # until all algos have had at least one evaluation.
-    val_scores = [-99999.9] * len(FLAGS.algorithms)
-    length_idx = 0
+  while step < FLAGS.train_steps:
+    feedback_list = [next(t) for t in train_samplers]
 
-    while step < FLAGS.train_steps:
-      feedback_list = [next(t) for t in train_samplers]
+    # Initialize model.
+    if step == 0:
+      all_features = [f.features for f in feedback_list]
+      if FLAGS.chunked_training:
+        # We need to initialize the model with samples of all lengths for
+        # all algorithms. Also, we need to make sure that the order of these
+        # sample sizes is the same as the order of the actual training sizes.
+        all_length_features = [all_features] + [
+            [next(t).features for t in train_samplers]
+            for _ in range(len(train_lengths))]
+        train_model.init(all_length_features[:-1], FLAGS.seed + 1)
+      else:
+        train_model.init(all_features, FLAGS.seed + 1)
 
-      # Initialize model.
-      if step == 0:
-        all_features = [f.features for f in feedback_list]
-        if FLAGS.chunked_training:
-          # We need to initialize the model with samples of all lengths for
-          # all algorithms. Also, we need to make sure that the order of these
-          # sample sizes is the same as the order of the actual training sizes.
-          all_length_features = [all_features] + [
-              [next(t).features for t in train_samplers]
-              for _ in range(len(train_lengths))]
-          train_model.init(all_length_features[:-1], FLAGS.seed + 1)
-        else:
-          train_model.init(all_features, FLAGS.seed + 1)
-
-      # Training step.
-      for algo_idx in range(len(train_samplers)):
-        feedback = feedback_list[algo_idx]
-        rng_key, new_rng_key = jax.random.split(rng_key)
-        if FLAGS.chunked_training:
-          # In chunked training, we must indicate which training length we are
-          # using, so the model uses the correct state.
-          length_and_algo_idx = (length_idx, algo_idx)
-        else:
-          # In non-chunked training, all training lengths can be treated equally,
-          # since there is no state to maintain between batches.
-          length_and_algo_idx = algo_idx
-        cur_loss = train_model.feedback(rng_key, feedback, length_and_algo_idx)
-        rng_key = new_rng_key
+    # Training step.
+    for algo_idx in range(len(train_samplers)):
+      feedback = feedback_list[algo_idx]
+      rng_key, new_rng_key = jax.random.split(rng_key)
+      if FLAGS.chunked_training:
+        # In chunked training, we must indicate which training length we are
+        # using, so the model uses the correct state.
+        length_and_algo_idx = (length_idx, algo_idx)
+      else:
+        # In non-chunked training, all training lengths can be treated equally,
+        # since there is no state to maintain between batches.
+        length_and_algo_idx = algo_idx
+      cur_loss = train_model.feedback(rng_key, feedback, length_and_algo_idx)
+      rng_key = new_rng_key
 
       if FLAGS.chunked_training:
         examples_in_chunk = np.sum(feedback.features.is_last).item()
@@ -662,109 +484,62 @@ def main(unused_argv):
                    FLAGS.algorithms[algo_idx], step,
                    cur_loss, current_train_items[algo_idx])
 
-      # Periodically evaluate model
-      if step >= next_eval:
-        eval_model.params = train_model.params
-        for algo_idx in range(len(train_samplers)):
-          common_extras = {'examples_seen': current_train_items[algo_idx],
-                           'step': step,
-                           'algorithm': FLAGS.algorithms[algo_idx]}
+    # Periodically evaluate model
+    if step >= next_eval:
+      eval_model.params = train_model.params
+      for algo_idx in range(len(train_samplers)):
+        common_extras = {'examples_seen': current_train_items[algo_idx],
+                         'step': step,
+                         'algorithm': FLAGS.algorithms[algo_idx]}
 
-          # Validation info.
-          new_rng_key, rng_key = jax.random.split(rng_key)
-          val_stats = collect_and_eval(
-              val_samplers[algo_idx],
-              functools.partial(eval_model.predict, algorithm_index=algo_idx),
-              val_sample_counts[algo_idx],
-              new_rng_key,
-              extras=common_extras)
-          logging.info('(val) algo %s step %d: %s',
-                       FLAGS.algorithms[algo_idx], step, val_stats)
-          val_scores[algo_idx] = val_stats['score']
+        # Validation info.
+        new_rng_key, rng_key = jax.random.split(rng_key)
+        val_stats = collect_and_eval(
+            val_samplers[algo_idx],
+            functools.partial(eval_model.predict, algorithm_index=algo_idx),
+            val_sample_counts[algo_idx],
+            new_rng_key,
+            extras=common_extras)
+        logging.info('(val) algo %s step %d: %s',
+                     FLAGS.algorithms[algo_idx], step, val_stats)
+        val_scores[algo_idx] = val_stats['score']
 
-        next_eval += FLAGS.eval_every
+      next_eval += FLAGS.eval_every
 
-        # logging.info(f"Inv T: {train_model.params['net/linear_pgn_clrs_processor']['temp']:.3f}")
+      # If best total score, update best checkpoint.
+      # Also save a best checkpoint on the first step.
+      msg = (f'best avg val score was '
+             f'{best_score/len(FLAGS.algorithms):.3f}, '
+             f'current avg val score is {np.mean(val_scores):.3f}, '
+             f'val scores are: ')
+      msg += ', '.join(
+          ['%s: %.3f' % (x, y) for (x, y) in zip(FLAGS.algorithms, val_scores)])
+      if (sum(val_scores) > best_score) or step == 0:
+        best_score = sum(val_scores)
+        logging.info('Checkpointing best model, %s', msg)
+        train_model.save_model('best.pkl')
+      else:
+        logging.info('Not saving new best model, %s', msg)
 
-        # If best total score, update best checkpoint.
-        # Also save a best checkpoint on the first step.
-        msg = (f'best avg val score was '
-               f'{best_score/len(FLAGS.algorithms):.3f}, '
-               f'current avg val score is {np.mean(val_scores):.3f}, '
-               f'val scores are: ')
-        msg += ', '.join(
-            ['%s: %.3f' % (x, y) for (x, y) in zip(FLAGS.algorithms, val_scores)])
-        if (sum(val_scores) >  best_score) or step == 0:
-          best_score = sum(val_scores)
-          logging.info('Checkpointing best model, %s', msg)
-          train_model.save_model('best.pkl')
-        else:
-          logging.info('Not saving new best model, %s', msg)
+    step += 1
+    length_idx = (length_idx + 1) % len(train_lengths)
 
-      step += 1
-      length_idx = (length_idx + 1) % len(train_lengths)
+  logging.info('Restoring best model from checkpoint...')
+  eval_model.restore_model('best.pkl', only_load_processor=False)
 
-    logging.info('Restoring best model from checkpoint...')
-    eval_model.restore_model('best.pkl', only_load_processor=False)
+  for algo_idx in range(len(train_samplers)):
+    common_extras = {'examples_seen': current_train_items[algo_idx],
+                     'step': step,
+                     'algorithm': FLAGS.algorithms[algo_idx]}
 
-    for algo_idx in range(len(train_samplers)):
-      common_extras = {'examples_seen': current_train_items[algo_idx],
-                       'step': step,
-                       'algorithm': FLAGS.algorithms[algo_idx]}
-
-      new_rng_key, rng_key = jax.random.split(rng_key)
-      test_stats = collect_and_eval(
-          test_samplers[algo_idx],
-          functools.partial(eval_model.predict, algorithm_index=algo_idx),
-          test_sample_counts[algo_idx],
-          new_rng_key,
-          extras=common_extras)
-      logging.info('(test) algo %s : %s', FLAGS.algorithms[algo_idx], test_stats)
-
-
-  if not FLAGS.test:
-    return
-
-  specil_model = clrs.models.BaselineModel(
-      spec=spec_list,
-      dummy_trajectory=[next(t) for t in test_samplers],
-      **model_params
-  )
-
-  specil_model.params = eval_model.params
-
-  for algo_idx in range(len(special_samplers)):
     new_rng_key, rng_key = jax.random.split(rng_key)
-    (lengths, trajs, stats, feedback, preds, hints, 
-     l2_node_updates_partial, 
-     l2_node_updates_aggregated,
-     l3_cocycle_args_update_aggregated,
-     l3_cocycle_args_update_aggregated_partial,
-     l3_multimorphism_msgs_aggregated,
-     l3_multimorphism_msgs_partial,
-    ) = dump_trajectories(
-        special_samplers[algo_idx],
-        functools.partial(specil_model.predict, algorithm_index=algo_idx, return_all_features=True),
-        special_sample_counts[algo_idx],
-        new_rng_key)
-    logging.info('(test) algo %s : %s', FLAGS.algorithms[algo_idx], {k:100*np.mean(v) for k,v in stats.items()})
-    logging.info(f'var: {100*np.std(stats["pi"])}')
-    for i in range(1,20):
-      logging.info(f'{i}: count={np.sum(lengths == i)} {100*np.mean(stats["pi"][lengths == i]):.2f} +/- '
-                   f'{100*np.std(stats["pi"][lengths == i]):.2f}%')
-    trajs_dump = {'trajs': trajs, 'score': stats['pi'], 'lengths': lengths,
-                  'inputs': feedback.features.inputs,
-                  'outputs': feedback.outputs,
-                  'hints': hints,
-                  'l2_node_updates_partial': l2_node_updates_partial,
-                  'l2_node_updates_aggregated': l2_node_updates_aggregated,
-                  'l3_cocycle_args_update_aggregated': l3_cocycle_args_update_aggregated,
-                  'l3_cocycle_args_update_aggregated_partial': l3_cocycle_args_update_aggregated_partial,
-                  'l3_multimorphism_msgs_aggregated': l3_multimorphism_msgs_aggregated,
-                  'l3_multimorphism_msgs_partial': l3_multimorphism_msgs_partial,
-                  }
-
-  np.savez(f"{FLAGS.checkpoint_path}/trajs.npz", **trajs_dump)
+    test_stats = collect_and_eval(
+        test_samplers[algo_idx],
+        functools.partial(eval_model.predict, algorithm_index=algo_idx),
+        test_sample_counts[algo_idx],
+        new_rng_key,
+        extras=common_extras)
+    logging.info('(test) algo %s : %s', FLAGS.algorithms[algo_idx], test_stats)
 
   logging.info('Done!')
 

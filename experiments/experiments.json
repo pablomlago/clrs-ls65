@@ -648,38 +648,32 @@
         "use_ln": "True"
     },
     "193": {
-        "processor_type": "mpnn_l3",
-        "algorithms": "bellman_ford",
-        "regularisation_weight_l2": 0.0,
-        "regularisation_weight_l3": 0.0
+        "processor_type": "mpnn_l2",
+        "algorithms": "bellman_ford"
     },
     "194": {
-        "processor_type": "mpnn_l1_l3",
-        "algorithms": "bfs",
-        "regularisation_weight_l2": 0.5,
-        "regularisation_weight_l3": 0.1,
-        "use_ln": "True"
+        "processor_type": "mpnn_l3",
+        "algorithms": "bellman_ford"
     },
     "195": {
-        "processor_type": "mpnn_l1_l3",
-        "algorithms": "dijkstra",
-        "regularisation_weight_l2": 0.5,
-        "regularisation_weight_l3": 0.1,
-        "use_ln": "True"
+        "processor_type": "mpnn_l1",
+        "algorithms": "bellman_ford"
     },
     "196": {
-        "processor_type": "mpnn_l1_l3",
-        "algorithms": "lcs_length",
-        "regularisation_weight_l2": 0.5,
-        "regularisation_weight_l3": 0.1,
-        "use_ln": "True"
+        "processor_type": "mpnn_l1_max",
+        "algorithms": "bellman_ford"
     },
     "197": {
+        "processor_type": "mpnn_l1_max",
+        "algorithms": "bellman_ford",
+        "regularisation_weight_l2": 1.0
+    },
+    "198": {
         "processor_type": "mpnn_l1_l3",
-        "algorithms": "activity_selector",
-        "regularisation_weight_l2": 0.5,
-        "regularisation_weight_l3": 0.1,
-        "use_ln": "True"
-    }                     
-    
+        "algorithms": "bellman_ford"
+    },
+    "199": {
+        "processor_type": "mpnn_l1_l3_max",
+        "algorithms": "bellman_ford"
+    }
 }
