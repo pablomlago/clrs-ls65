@@ -646,6 +646,13 @@
         "regularisation_weight_l2": 10,
         "regularisation_weight_l3": 0.0,
         "use_ln": "True"
+    },
+    "193": {
+        "processor_type": "mpnn_l2",
+        "algorithms": "bellman_ford"
+    },
+    "194": {
+        "processor_type": "mpnn_l3",
+        "algorithms": "bellman_ford"
     }
-    
 }
