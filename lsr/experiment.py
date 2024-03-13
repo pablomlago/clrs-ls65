@@ -253,6 +253,11 @@ def run_experiment(path: str, paths_drawn=100):
   l2_node_updates_aggregated = data_dump['l2_node_updates_aggregated']
   true_lengths = data_dump['lengths']
 
+  l3_cocycle_args_update_aggregated=data_dump['l3_cocycle_args_update_aggregated']
+  l3_cocycle_args_update_aggregated_partial=data_dump['l3_cocycle_args_update_aggregated_partial']
+  l3_multimorphism_msgs_aggregated=data_dump['l3_multimorphism_msgs_aggregated']
+  l3_multimorphism_msgs_partial=data_dump['l3_multimorphism_msgs_partial']
+
   try:
     os.mkdir(f'{path}/pca_plots')
   except OSError:
@@ -273,6 +278,12 @@ def run_experiment(path: str, paths_drawn=100):
   score = score[true_lengths == max_length_i]
   l2_node_updates_aggregated = l2_node_updates_aggregated[true_lengths == max_length_i, :max_length_i, :]
   l2_node_updates_partial = l2_node_updates_partial[true_lengths == max_length_i, :max_length_i, :]
+
+  l3_cocycle_args_update_aggregated=l3_cocycle_args_update_aggregated[true_lengths == max_length_i, :max_length_i, :]
+  l3_cocycle_args_update_aggregated_partial=l3_cocycle_args_update_aggregated_partial[true_lengths == max_length_i, :max_length_i, :]
+  l3_multimorphism_msgs_aggregated=l3_multimorphism_msgs_aggregated[true_lengths == max_length_i, :max_length_i, :]
+  l3_multimorphism_msgs_partial=l3_multimorphism_msgs_partial[true_lengths == max_length_i, :max_length_i, :]
+
   true_lengths = true_lengths[true_lengths == max_length_i]  
 
   # means = np.mean(data, axis=0)
@@ -292,7 +303,9 @@ def run_experiment(path: str, paths_drawn=100):
 
   plot_stepwise_global(data, paths_drawn, true_lengths, path)
   plot_stepwise_local(data, paths_drawn, true_lengths, path)
-  plot_stepwise_local_asynchrony([l2_node_updates_aggregated, l2_node_updates_partial], paths_drawn, true_lengths, path)
+  plot_stepwise_local_asynchrony([l2_node_updates_aggregated, l2_node_updates_partial], paths_drawn, true_lengths, path, 'l2')
+  plot_stepwise_local_asynchrony([l3_cocycle_args_update_aggregated, l3_cocycle_args_update_aggregated_partial], paths_drawn, true_lengths, path, 'l3_cocycle')
+  plot_stepwise_local_asynchrony([l3_multimorphism_msgs_aggregated, l3_multimorphism_msgs_partial], paths_drawn, true_lengths, path, 'l3_multimorphism')
 
   return
   a = 4
