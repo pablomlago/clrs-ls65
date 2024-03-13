@@ -662,5 +662,10 @@
     "196": {
         "processor_type": "mpnn_l1_max",
         "algorithms": "bellman_ford"
+    },
+    "197": {
+        "processor_type": "mpnn_l1_max",
+        "algorithms": "bellman_ford",
+        "regularisation_weight_l2": 1.0
     }
 }
