@@ -658,5 +658,9 @@
     "195": {
         "processor_type": "mpnn_l1",
         "algorithms": "bellman_ford"
+    },
+    "196": {
+        "processor_type": "mpnn_l1_max",
+        "algorithms": "bellman_ford"
     }
 }
