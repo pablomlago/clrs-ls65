@@ -241,7 +241,8 @@ def plot_stepwise_local_asynchrony(data, paths_drawn, sample_len, path="./", pre
               color='green', alpha=0.6, lw=0.1)
 
   fig.tight_layout()
-  fig.savefig(f"{path}/{prefix}_stepwise_local_embeddings.png", dpi=300)
+  plt.locator_params(axis='y', nbins=5)
+  fig.savefig(f"{path}/{prefix}_stepwise_local_embeddings.png", bbox_inches='tight', pad_inches=0.1, dpi=300)
   plt.close()
 
 def run_experiment(path: str, paths_drawn=100):
