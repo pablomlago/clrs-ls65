@@ -17,6 +17,7 @@
 
 import abc
 from typing import Any, Callable, List, Optional, Tuple
+import functools
 
 import chex
 import haiku as hk
@@ -26,7 +27,42 @@ from jax import random
 from jax import lax
 import numpy as np
 
-from clrs._src.utils import sample_msgs
+from clrs._src.utils import sample_msgs, sample_nodes
+
+@chex.dataclass
+class AsynchronyInformation:
+  l2_loss: chex.Array
+  l3_cocycle_loss: chex.Array
+  l3_multimorphism_loss: chex.Array
+  l2_node_update_aggregated: Optional[chex.Array]
+  l2_node_update_partial: Optional[chex.Array]
+  l3_cocycle_args_update_aggregated: Optional[chex.Array]
+  l3_cocycle_args_update_aggregated_partial: Optional[chex.Array]
+  l3_multimorphism_msgs_aggregated: Optional[chex.Array]
+  l3_multimorphism_msgs_partial: Optional[chex.Array]
+
+def aggregate_asynchrony_information(
+    aggregated_asynchrony_information: Optional[AsynchronyInformation], 
+    new_asynchrony_information: AsynchronyInformation,
+  ) -> AsynchronyInformation:
+  # If the aggregated information so far is None, simply return the new information
+  if aggregated_asynchrony_information is None:
+    return new_asynchrony_information
+  # Otherse aggregate information
+  return AsynchronyInformation(
+    l2_loss=aggregated_asynchrony_information.l2_loss + new_asynchrony_information.l2_loss,
+    l3_cocycle_loss=aggregated_asynchrony_information.l3_cocycle_loss + new_asynchrony_information.l3_cocycle_loss,
+    l3_multimorphism_loss=aggregated_asynchrony_information.l3_multimorphism_loss + new_asynchrony_information.l3_multimorphism_loss,
+    # Embeddings to create L2 asynchrony visualizations
+    l2_node_update_aggregated=new_asynchrony_information.l2_node_update_aggregated,
+    l2_node_update_partial=new_asynchrony_information.l2_node_update_partial,
+    # Embeddings to create L3 cocycle visualisations
+    l3_cocycle_args_update_aggregated=new_asynchrony_information.l3_cocycle_args_update_aggregated,
+    l3_cocycle_args_update_aggregated_partial=new_asynchrony_information.l3_cocycle_args_update_aggregated_partial,
+    # Embeddings to create L3 multimorphism visualisations
+    l3_multimorphism_msgs_aggregated=new_asynchrony_information.l3_multimorphism_msgs_aggregated,
+    l3_multimorphism_msgs_partial=new_asynchrony_information.l3_multimorphism_msgs_partial,
+  )
 
 _Array = chex.Array
 _Fn = Callable[..., Any]
@@ -76,13 +112,190 @@ class TropicalLinear(hk.Module):
       w_init = hk.initializers.TruncatedNormal(stddev=stddev)
     w = hk.get_parameter("w", [input_size, output_size], dtype, init=w_init)
 
-    inputs_expanded = inputs[:, :, None]
-    w_expanded = w[None, :, :] 
+    inputs_expanded = jnp.expand_dims(inputs, axis=-1)
+    w_expanded = jnp.expand_dims(w, axis=(0,1))
 
-    out = jax.scipy.special.logsumexp(inputs_expanded  + w_expanded, axis=1) 
+    out = jax.scipy.special.logsumexp(inputs_expanded  + w_expanded, axis=2) 
 
     return out
 
+########
+# Function to compute asynchrony losses
+########
+def compute_asynchrony_losses(
+    num_messages_sample: int, 
+    num_nodes_sample: int,
+    hidden: _Array, 
+    node_args: _Array,
+    msgs: _Array, 
+    adj_mat: _Array,
+    node_fts: _Array,
+    edge_fts: _Array,
+    graph_fts: _Array,
+    msg_reduction_fn: _Fn, 
+    arg_reduction_fn: _Fn, 
+    node_update_scan_fn: _Fn, 
+    arg_update_scan_fn: _Fn,
+    msg_generation_fn: _Fn
+  ):
+
+  # Extract useful variables
+  batch_size, num_nodes, _ = hidden.shape
+
+  #######
+  ## Computation of the L2 asynchrony loss: node udpate needs to be a left action
+  #######
+
+  # Ensure that there are enough messages, second dimension of hidden corresponds to the number of nodes
+  num_messages_sample = min(num_messages_sample, num_nodes)  
+  # Randomly sample incoming messages for each node. Resulting shape is [B, num_messages_sample, N, H]
+  sampled_msgs = sample_msgs(msgs, adj_mat, num_messages_sample)
+  # Apply the reduction over the messages, resulting shape is [B,N,H]
+  sampled_msgs_reduced = msg_reduction_fn(sampled_msgs, axis=1)
+  # Node update for the aggregated sampled messages (first component of the loss)
+  node_update_aggregated, _ = node_update_scan_fn(hidden, sampled_msgs_reduced)
+  # Argument update for the aggregated sampled messages (first component of the cocycle loss)
+  args_update_aggregated, _ = arg_update_scan_fn(hidden, sampled_msgs_reduced)
+  # The shape of sample messages is [B, num_samples_per_node, N, H], and the arguments
+  # in jax.lax.scan are passed through the leading dimension
+  sampled_msgs = jnp.transpose(sampled_msgs, (1, 0, 2, 3))
+  # Iterative updates for the sampled messages
+  node_update_partial, node_update_partial_steps = hk.scan(node_update_scan_fn, hidden, sampled_msgs, num_messages_sample)
+  # Iterative argument generations for the sampled messages
+  args_update_partial_steps, _ = jax.vmap(arg_update_scan_fn, in_axes=0, out_axes=0)(
+    jnp.concatenate(
+      [
+        jnp.expand_dims(hidden, axis=0), # s
+        node_update_partial_steps[:-1, ...] # \phi(s,m)
+      ],
+      axis=0
+    ), 
+    sampled_msgs
+  )
+  # Regularisation term penalising the violation of the associativity in the node update
+  l2_loss = jnp.mean((node_update_aggregated - node_update_partial)**2)
+
+  #######
+  ## Computation of the L3 cocycle loss: assuming argument function is the same as node update
+  #######
+
+  # The shape of node_update_partial_steps is [num_messages_sample, B, N, H], so need to
+  # reduce over leading dimension
+  args_update_aggregated_partial = arg_reduction_fn(args_update_partial_steps, axis=0)
+  # Cocycle loss computation
+  l3_cocycle_loss = jnp.mean((args_update_aggregated - args_update_aggregated_partial)**2)
+
+  #######
+  ## Computation of the L3 multimorphism loss
+  #######
+
+  # Ensure that there are enough nodes to sample, second dimension of hidden corresponds to the number of nodes
+  num_nodes_sample = min(num_nodes_sample, num_nodes)  
+  # Subsample a set of nodes to ensure that the loss computation does not result in a huge overhead
+  mask_receivers, mask_senders = sample_nodes(batch_size, num_nodes, adj_mat, num_nodes_sample)
+
+  # Subsample hiddens for senders and receivers - [B,num_nodes_sample,H]
+  args_receivers_sample = jnp.take_along_axis(node_args, jnp.expand_dims(mask_receivers, axis=-1), axis=1)
+  args_senders_sample = jnp.take_along_axis(node_args, jnp.expand_dims(mask_senders, axis=-1), axis=1)
+  
+  # Subsample node features for senders and receivers - [B,num_nodes_sample, H]
+  node_fts_receivers_sample = jnp.take_along_axis(node_fts, jnp.expand_dims(mask_receivers, axis=-1), axis=1)
+  node_fts_senders_sample = jnp.take_along_axis(node_fts, jnp.expand_dims(mask_senders, axis=-1), axis=1)
+  
+  # Subsample edge features - [B, num_nodes_sample (senders), num_nodes_sample (receivers), H]
+  edge_fts_sample = jnp.take_along_axis(edge_fts, jnp.expand_dims(mask_senders, axis=(2,3)), axis=1)
+  edge_fts_sample = jnp.take_along_axis(edge_fts_sample, jnp.expand_dims(mask_receivers, axis=(1,3)), axis=2)
+
+  # Subsample in the partial node updates to obtain the partial arguments generated
+  # The shape is [num_messages_sample, b, num_nodes_sample, h]
+  args_update_partial_steps_receivers = jnp.take_along_axis(args_update_partial_steps, jnp.expand_dims(mask_receivers, axis=(0,-1)), axis=2)
+  args_update_partial_steps_senders = jnp.take_along_axis(args_update_partial_steps, jnp.expand_dims(mask_senders, axis=(0,-1)), axis=2)
+
+  # Partial message generation function
+  msg_generation_fn_partial = functools.partial(
+    msg_generation_fn,
+    node_fts_receivers=node_fts_receivers_sample,
+    node_fts_senders=node_fts_senders_sample,
+    edge_fts=edge_fts_sample,
+    graph_fts=graph_fts
+  )
+  # Partial message generation function (receivers)
+  msg_generation_fn_partial_receivers = functools.partial(
+    msg_generation_fn_partial,
+    args_senders=args_senders_sample,
+  )
+  
+  # Partial message generation function (senders)
+  msg_generation_fn_partial_senders = functools.partial(
+    lambda args_senders, args_receivers: msg_generation_fn_partial(args_receivers, args_senders),
+    args_receivers=args_receivers_sample,
+  )
+  
+  # Function to evaluate linearity in each component, returns two tensors of shape [B, num_nodes_sample, num_nodes_sample, H]
+  def compute_aggregated_partial_msgs(msg_generation_fn_partial, args_update_partial_steps):
+    msgs_aggregated = msg_generation_fn_partial(
+      arg_reduction_fn(args_update_partial_steps, axis=0),
+    )
+    msgs_partial = msg_reduction_fn(
+      jax.vmap(msg_generation_fn_partial, in_axes=0, out_axes=0)(
+        args_update_partial_steps
+      ), 
+      axis=0
+    )
+    return msgs_aggregated, msgs_partial
+
+  # Verify linearity in the second dimension (receivers)
+  msgs_aggregated_receivers, msgs_partial_receivers = compute_aggregated_partial_msgs(
+    msg_generation_fn_partial_receivers, args_update_partial_steps_receivers,
+  )
+  # Verify linearity in the first dimension (senders)
+  msgs_aggregated_senders, msgs_partial_senders = compute_aggregated_partial_msgs(
+    msg_generation_fn_partial_senders, args_update_partial_steps_senders,
+  )
+  
+  # Aggregate violations of the linearity in each dimension
+  l3_multimorphism_loss = jnp.mean(
+    (
+      msgs_aggregated_receivers-msgs_partial_receivers
+    )**2 +
+    (
+      msgs_aggregated_senders-msgs_partial_senders  
+    )**2
+  )/2.
+
+  # Return the three loss components as a dictionary
+  return AsynchronyInformation(
+    l2_loss=l2_loss, 
+    l3_cocycle_loss=l3_cocycle_loss, 
+    l3_multimorphism_loss=l3_multimorphism_loss,
+    # Expand across first dimension to concatenate over steps
+    l2_node_update_aggregated=node_update_aggregated,
+    l2_node_update_partial=node_update_partial,
+    l3_cocycle_args_update_aggregated=args_update_aggregated,
+    l3_cocycle_args_update_aggregated_partial=args_update_aggregated_partial,
+    l3_multimorphism_msgs_aggregated=msgs_aggregated_receivers+msgs_aggregated_senders,
+    l3_multimorphism_msgs_partial=msgs_partial_receivers+msgs_partial_senders,
+  )
+
+def apply_msg_reduction(msg_reduction_fn: _Fn, msgs: _Array, adj_mat: _Array):
+  # Computes m_{i}^{(t)} as a reduction over f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)}), 
+  # e.g. m_{i}^{(t)}=max_{1 \leq j \leq n}f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)})
+  if msg_reduction_fn == jnp.mean:
+    # msgs: [B, N, N, self.mid_size], adj_mat: [B, N, N, 1]
+    # If (i,j) \not \in adj_mat, then msgs[i,j,:]=0,  therefore,
+    # when performing the sum over the axis=1, the reduction is 
+    # applied in a one-hop neighborhood basis 
+    msgs = jnp.sum(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
+    msgs = msgs / jnp.sum(adj_mat, axis=-1, keepdims=True)
+  elif msg_reduction_fn == jnp.max:
+    maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
+                        msgs,
+                        -BIG_NUMBER)
+    msgs = jnp.max(maxarg, axis=1)
+  else:
+    msgs = msg_reduction_fn(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
+
+  return msgs
 
 class Processor(hk.Module):
   """Processor abstract base class."""
@@ -453,6 +666,7 @@ class PGN(Processor):
       use_triplets: bool = False,
       nb_triplet_fts: int = 8,
       gated: bool = False,
+      force_linear: bool = False,
       name: str = 'mpnn_aggr',
   ):
     super().__init__(name=name)
@@ -468,6 +682,7 @@ class PGN(Processor):
     self.use_ln = use_ln
     self.use_triplets = use_triplets
     self.nb_triplet_fts = nb_triplet_fts
+    self._force_linear = force_linear
     self.gated = gated
 
   def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
@@ -517,7 +732,7 @@ class PGN(Processor):
 
     tri_msgs = None
 
-    if self.use_triplets:
+    if self.use_triplets and not self._force_linear:
       # Triplet messages, as done by Dudzik and Velickovic (2022)
       triplets = get_triplet_msgs(z, edge_fts, graph_fts, self.nb_triplet_fts)
 
@@ -537,10 +752,13 @@ class PGN(Processor):
     if self._msgs_mlp_sizes is not None:
       # self._msgs_mlp_sizes is a tuple, e.g. [64, 128, 16], with the output dimesions
       # for a series of Linear layers, followed by their respective activations
-      msgs = hk.nets.MLP(self._msgs_mlp_sizes)(jax.nn.relu(msgs))
+      if not self._force_linear:
+        msgs = hk.nets.MLP(self._msgs_mlp_sizes)(jax.nn.relu(msgs))
+      else:
+        msgs = hk.nets.MLP(self._msgs_mlp_sizes, activation=lambda x: x)(msgs)
 
     # Additional activation
-    if self.mid_act is not None:
+    if self.mid_act is not None and not self._force_linear:
       msgs = self.mid_act(msgs)
 
     # Computation of h_{i}^{(t)}=f_{r}(z_{i}^{(t)}, m_{i}^{(t)})
@@ -550,7 +768,7 @@ class PGN(Processor):
       # h_{i}^{(t)} = Linear(z_{i}^{(t)}) + Linear(m_{i}^{(t)})
       ret = h_1 + h_2
 
-      if self.activation is not None:
+      if self.activation is not None and not self._force_linear:
         ret = self.activation(ret)
 
       # Include LayerNorm if needed
@@ -631,6 +849,13 @@ class PGN(Processor):
                          msgs,
                          -BIG_NUMBER)
       msgs = jnp.max(maxarg, axis=1)
+    elif self.reduction == jax.nn.softmax:
+      maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
+                         msgs,
+                         -BIG_NUMBER)
+      inv_temp = 1  # hk.get_parameter("temp", (), init=jnp.ones)
+      soft_coeffs = jax.nn.softmax(inv_temp * maxarg, axis=1)
+      msgs = jnp.sum(msgs * soft_coeffs, axis=1)
     else:
       msgs = self.reduction(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
 
@@ -638,7 +863,7 @@ class PGN(Processor):
     ret = compute_node_update(hidden, msgs, z)
 
     return ret, tri_msgs, mse_loss  # pytype: disable=bad-return-type  # numpy-scalars
-  
+
 class PGN_L1(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
 
@@ -648,13 +873,16 @@ class PGN_L1(Processor):
       mid_size: Optional[int] = None,
       mid_act: Optional[_Fn] = None,
       activation: Optional[_Fn] = jax.nn.relu,
-      reduction: _Fn = jnp.sum,
+      reduction: _Fn = jnp.max,
+      arg_reduction: _Fn = jnp.max,
       msgs_mlp_sizes: Optional[List[int]] = None,
       use_ln: bool = False,
       use_triplets: bool = False,
       nb_triplet_fts: int = 8,
       gated: bool = False,
       name: str = 'mpnn_l1',
+      num_messages_sample: int = 2,
+      num_nodes_sample: int = 8,
   ):
     super().__init__(name=name)
     if mid_size is None:
@@ -664,13 +892,16 @@ class PGN_L1(Processor):
     self.out_size = out_size
     self.mid_act = mid_act
     # Same as in Asynchronous Algorithmic Alignment with Cocycles
-    self.activation = jax.nn.relu
-    self.reduction = jnp.sum
+    self.activation = activation
+    self.reduction = reduction
+    self.arg_reduction = arg_reduction
     self._msgs_mlp_sizes = msgs_mlp_sizes
     self.use_ln = use_ln
     self.use_triplets = use_triplets
     self.nb_triplet_fts = nb_triplet_fts
     self.gated = gated
+    self.num_messages_sample = num_messages_sample
+    self.num_nodes_sample = num_nodes_sample
 
   def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
       self,
@@ -679,6 +910,7 @@ class PGN_L1(Processor):
       graph_fts: _Array,
       adj_mat: _Array,
       hidden: _Array,
+      node_args: _Array,
       **unused_kwargs,
   ) -> _Array:
     """MPNN inference step."""
@@ -688,7 +920,6 @@ class PGN_L1(Processor):
     assert graph_fts.shape[:-1] == (b,)
     assert adj_mat.shape == (b, n, n)
 
-    z = jnp.concatenate([node_fts, hidden], axis=-1)
     m_1 = hk.Linear(self.mid_size)
     m_2 = hk.Linear(self.mid_size)
     m_e = hk.Linear(self.mid_size)
@@ -697,285 +928,29 @@ class PGN_L1(Processor):
     o1 = hk.Linear(self.out_size)
     o2 = hk.Linear(self.out_size)
 
-    msg_1 = m_1(z)
-    msg_2 = m_2(z)
-    msg_e = m_e(edge_fts)
-    msg_g = m_g(graph_fts)
+    if self.use_ln:
+      ln = hk.LayerNorm(axis=-1, create_scale=True, create_offset=True)
 
-    # The message generator function is linear (psi)
-    msgs = (
-        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
-        msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
-
-    # The reduction is a sum
-    msgs = jnp.sum(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
-
-    # The node update is linear
-    h_1 = o1(hidden)
-    h_2 = o2(msgs)
-
-    ret = h_1 + h_2
-
-    # ReLU activation
-    if self.activation is not None:
-      ret = self.activation(ret)
-
-    return ret, None, jnp.array(0.)  # pytype: disable=bad-return-type  # numpy-scalars
-
-class PGN_L1_Max(Processor):
-  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
-
-  def __init__(
-      self,
-      out_size: int,
-      mid_size: Optional[int] = None,
-      mid_act: Optional[_Fn] = None,
-      activation: Optional[_Fn] = jax.nn.relu,
-      reduction: _Fn = jnp.sum,
-      msgs_mlp_sizes: Optional[List[int]] = None,
-      use_ln: bool = False,
-      use_triplets: bool = False,
-      nb_triplet_fts: int = 8,
-      gated: bool = False,
-      name: str = 'mpnn_l1_max',
-  ):
-    super().__init__(name=name)
-    if mid_size is None:
-      self.mid_size = out_size
-    else:
-      self.mid_size = mid_size
-    self.out_size = out_size
-    self.mid_act = mid_act
-    # Same as in Asynchronous Algorithmic Alignment with Cocycles
-    self.activation = jax.nn.relu
-    self.reduction = jnp.sum
-    self._msgs_mlp_sizes = msgs_mlp_sizes
-    self.use_ln = use_ln
-    self.use_triplets = use_triplets
-    self.nb_triplet_fts = nb_triplet_fts
-    self.gated = gated
-
-  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
-      self,
-      node_fts: _Array,
-      edge_fts: _Array,
-      graph_fts: _Array,
-      adj_mat: _Array,
-      hidden: _Array,
-      **unused_kwargs,
-  ) -> _Array:
-    """MPNN inference step."""
-
-    b, n, _ = node_fts.shape
-    assert edge_fts.shape[:-1] == (b, n, n)
-    assert graph_fts.shape[:-1] == (b,)
-    assert adj_mat.shape == (b, n, n)
-
-    z = jnp.concatenate([node_fts, hidden], axis=-1)
-    m_1 = hk.Linear(self.mid_size)
-    m_2 = hk.Linear(self.mid_size)
-    m_e = hk.Linear(self.mid_size)
-    m_g = hk.Linear(self.mid_size)
-
-    o1 = hk.Linear(self.out_size)
-    o2 = hk.Linear(self.out_size)
-
-    msg_1 = m_1(z)
-    msg_2 = m_2(z)
-    msg_e = m_e(edge_fts)
-    msg_g = m_g(graph_fts)
-
-    # The message generator function is linear (psi)
-    msgs = (
-        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
-        msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
-
-    # The reduction is a sum
-    # msgs = jnp.sum(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
-
-    # The reduction is a max
-    maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
-                         msgs,
-                         -BIG_NUMBER)
-    msgs = jnp.max(maxarg, axis=1)
-
-    # The node update is linear
-    h_1 = o1(hidden)
-    h_2 = o2(msgs)
-
-    ret = h_1 + h_2
-
-    # ReLU activation
-    if self.activation is not None:
-      ret = self.activation(ret)
-
-    return ret, None, jnp.array(0.)  # pytype: disable=bad-return-type  # numpy-scalars
-
-class PGN_L1_Residual(Processor):
-  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
-
-  def __init__(
-      self,
-      out_size: int,
-      mid_size: Optional[int] = None,
-      mid_act: Optional[_Fn] = None,
-      activation: Optional[_Fn] = jax.nn.relu,
-      reduction: _Fn = jnp.sum,
-      msgs_mlp_sizes: Optional[List[int]] = None,
-      use_ln: bool = False,
-      use_triplets: bool = False,
-      nb_triplet_fts: int = 8,
-      gated: bool = False,
-      name: str = 'mpnn_l1',
-  ):
-    super().__init__(name=name)
-    if mid_size is None:
-      self.mid_size = out_size
-    else:
-      self.mid_size = mid_size
-    self.out_size = out_size
-    self.mid_act = mid_act
-    # Same as in Asynchronous Algorithmic Alignment with Cocycles
-    self.activation = jax.nn.relu
-    self.reduction = jnp.sum
-    self._msgs_mlp_sizes = msgs_mlp_sizes
-    self.use_ln = use_ln
-    self.use_triplets = use_triplets
-    self.nb_triplet_fts = nb_triplet_fts
-    self.gated = gated
-
-  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
-      self,
-      node_fts: _Array,
-      edge_fts: _Array,
-      graph_fts: _Array,
-      adj_mat: _Array,
-      hidden: _Array,
-      **unused_kwargs,
-  ) -> _Array:
-    """MPNN inference step."""
-
-    b, n, _ = node_fts.shape
-    assert edge_fts.shape[:-1] == (b, n, n)
-    assert graph_fts.shape[:-1] == (b,)
-    assert adj_mat.shape == (b, n, n)
-
-    z = jnp.concatenate([node_fts, hidden], axis=-1)
-    m_1 = hk.Linear(self.mid_size)
-    m_2 = hk.Linear(self.mid_size)
-    m_e = hk.Linear(self.mid_size)
-    m_g = hk.Linear(self.mid_size)
-
-    o1 = hk.Linear(self.out_size)
-    o2 = hk.Linear(self.out_size)
-
-    msg_1 = m_1(z)
-    msg_2 = m_2(z)
-    msg_e = m_e(edge_fts)
-    msg_g = m_g(graph_fts)
-
-    # The message generator function is linear (psi)
-    msgs = (
-        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
-        msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
-
-    # The reduction is a sum
-    # msgs = jnp.sum(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
-
-    # The reduction is a max
-    maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
-                         msgs,
-                         -BIG_NUMBER)
-    msgs = jnp.max(maxarg, axis=1)
-
-    # The node update is linear
-    h_1 = o1(hidden)
-    h_2 = o2(msgs)
-
-    ret = h_1 + h_2
-
-    # ReLU activation
-    if self.activation is not None:
-      ret = self.activation(ret)
-
-    # Add residual connection
-    ret = ret + hidden
-
-    return ret, None, jnp.array(0.)  # pytype: disable=bad-return-type  # numpy-scalars
-  
-class PGN_L1_Regularised_Max(Processor):
-  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
-
-  def __init__(
-      self,
-      out_size: int,
-      mid_size: Optional[int] = None,
-      mid_act: Optional[_Fn] = None,
-      activation: Optional[_Fn] = jax.nn.relu,
-      reduction: _Fn = jnp.sum,
-      msgs_mlp_sizes: Optional[List[int]] = None,
-      use_ln: bool = False,
-      use_triplets: bool = False,
-      nb_triplet_fts: int = 8,
-      gated: bool = False,
-      name: str = 'mpnn_l1_regularised_max',
-  ):
-    super().__init__(name=name)
-    if mid_size is None:
-      self.mid_size = out_size
-    else:
-      self.mid_size = mid_size
-    self.out_size = out_size
-    self.mid_act = mid_act
-    # Same as in Asynchronous Algorithmic Alignment with Cocycles
-    self.activation = jax.nn.relu
-    self.reduction = jnp.sum
-    self._msgs_mlp_sizes = msgs_mlp_sizes
-    self.use_ln = use_ln
-    self.use_triplets = use_triplets
-    self.nb_triplet_fts = nb_triplet_fts
-    self.gated = gated
-
-  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
-      self,
-      node_fts: _Array,
-      edge_fts: _Array,
-      graph_fts: _Array,
-      adj_mat: _Array,
-      hidden: _Array,
-      **unused_kwargs,
-  ) -> _Array:
-    """MPNN inference step."""
-
-    b, n, _ = node_fts.shape
-    assert edge_fts.shape[:-1] == (b, n, n)
-    assert graph_fts.shape[:-1] == (b,)
-    assert adj_mat.shape == (b, n, n)
-
-    z = jnp.concatenate([node_fts, hidden], axis=-1)
-    m_1 = hk.Linear(self.mid_size)
-    m_2 = hk.Linear(self.mid_size)
-    m_e = hk.Linear(self.mid_size)
-    m_g = hk.Linear(self.mid_size)
-
-    o1 = hk.Linear(self.out_size)
-    o2 = hk.Linear(self.out_size)
-
-    msg_1 = m_1(z)
-    msg_2 = m_2(z)
-    msg_e = m_e(edge_fts)
-    msg_g = m_g(graph_fts)
-
-    # The message generator function is linear (psi)
-    msgs = (
-        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
-        msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
+    ###############
+    ## Functions to compute message passing steps
+    ###############
     
-    ###############
-    ## The following code includes the operations needed for the computation of the
-    ## regularized loss.
-    ###############
+    # Definition of msg_generation_fn
+    def compute_messages(args_receivers, args_senders, node_fts_receivers, node_fts_senders, edge_fts, graph_fts):
+      z_1 = jnp.concatenate([node_fts_receivers, args_receivers], axis=-1)
+      z_2 = jnp.concatenate([node_fts_senders, args_senders], axis=-1)
+      msg_1 = m_1(z_1)
+      msg_2 = m_2(z_2)
+      msg_e = m_e(edge_fts)
+      msg_g = m_g(graph_fts)
 
+      # The message generator function is linear (psi)
+      msgs = (
+          jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
+          msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
+      
+      return msgs
+    
     def compute_node_update_scan(hidden, msgs):
       # The node update is linear
       h_1 = o1(hidden)
@@ -986,157 +961,52 @@ class PGN_L1_Regularised_Max(Processor):
       # ReLU activation
       if self.activation is not None:
         ret = self.activation(ret)
+
+      # Include LayerNorm if needed
+      if self.use_ln:
+        ret = ln(ret)
+
       # The hidden state of the node is propagated within the carry. The second
       # return is None as it is not used, and it is only required by hk.scan
-      return ret, None
-    
-    # Number of messages to sample TODO: Pass through command line
-    num_samples_per_node = 2
-    # Randomly sample incoming messages for each node. sample_msgs has resulting shape [B, 2, N, H]
-    sampled_msgs = sample_msgs(msgs, adj_mat, num_samples_per_node)
+      return ret, ret
 
-    sampled_msgs_reduced = jnp.max(sampled_msgs, axis=1)
+    ###############
+    ## End of functions to compute message passing steps
+    ###############
 
-    # Node update for the aggregated sampled messages (first component of the loss)
-    ret_loss_1, _ = compute_node_update_scan(hidden, sampled_msgs_reduced)
-    # The shape of sample messages is [B, num_samples_per_node, N, H], and the arguments
-    # in jax.lax.scan are passed through the leading dimension
-    sampled_msgs = jnp.transpose(sampled_msgs, (1, 0, 2, 3))
-    # Iterative updates for the sampled messages
-    ret_loss_2, _ = hk.scan(compute_node_update_scan, hidden, sampled_msgs, num_samples_per_node)
-    # Regularization term penalising the violation of the associativity in the node update
-    mse_loss = jnp.mean((ret_loss_1 - ret_loss_2)**2)
+    # Compute messages
+    msgs = compute_messages(hidden, hidden, node_fts, node_fts, edge_fts, graph_fts)
+
+    # Call to code to compute losses
+    asynchrony_losses = compute_asynchrony_losses(
+      self.num_messages_sample, 
+      self.num_nodes_sample, 
+      hidden,
+      hidden,
+      msgs, 
+      adj_mat, 
+      node_fts, 
+      edge_fts, 
+      graph_fts, 
+      self.reduction, 
+      self.arg_reduction, 
+      compute_node_update_scan, 
+      compute_node_update_scan,
+      compute_messages
+    )
 
     ###############
     ## End of code for computing the regularized loss.
     ###############
 
-    # The reduction is a sum
-    maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
-                         msgs,
-                         -BIG_NUMBER)
-    msgs = jnp.max(maxarg, axis=1)
+    # Computes m_{i}^{(t)} as a reduction over f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)}), 
+    # e.g. m_{i}^{(t)}=max_{1 \leq j \leq n}f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)})
+    msgs = apply_msg_reduction(self.reduction, msgs, adj_mat)
 
     # Computation of h_{i}^{(t)}=f_{r}(z_{i}^{(t)}, m_{i}^{(t)})
     ret, _ = compute_node_update_scan(hidden, msgs)
 
-    return ret, None, mse_loss  # pytype: disable=bad-return-type  # numpy-scalars
-
-class PGN_L1_Regularised(Processor):
-  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
-
-  def __init__(
-      self,
-      out_size: int,
-      mid_size: Optional[int] = None,
-      mid_act: Optional[_Fn] = None,
-      activation: Optional[_Fn] = jax.nn.relu,
-      reduction: _Fn = jnp.sum,
-      msgs_mlp_sizes: Optional[List[int]] = None,
-      use_ln: bool = False,
-      use_triplets: bool = False,
-      nb_triplet_fts: int = 8,
-      gated: bool = False,
-      name: str = 'mpnn_l1_regularised',
-  ):
-    super().__init__(name=name)
-    if mid_size is None:
-      self.mid_size = out_size
-    else:
-      self.mid_size = mid_size
-    self.out_size = out_size
-    self.mid_act = mid_act
-    # Same as in Asynchronous Algorithmic Alignment with Cocycles
-    self.activation = jax.nn.relu
-    self.reduction = jnp.sum
-    self._msgs_mlp_sizes = msgs_mlp_sizes
-    self.use_ln = use_ln
-    self.use_triplets = use_triplets
-    self.nb_triplet_fts = nb_triplet_fts
-    self.gated = gated
-
-  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
-      self,
-      node_fts: _Array,
-      edge_fts: _Array,
-      graph_fts: _Array,
-      adj_mat: _Array,
-      hidden: _Array,
-      **unused_kwargs,
-  ) -> _Array:
-    """MPNN inference step."""
-
-    b, n, _ = node_fts.shape
-    assert edge_fts.shape[:-1] == (b, n, n)
-    assert graph_fts.shape[:-1] == (b,)
-    assert adj_mat.shape == (b, n, n)
-
-    z = jnp.concatenate([node_fts, hidden], axis=-1)
-    m_1 = hk.Linear(self.mid_size)
-    m_2 = hk.Linear(self.mid_size)
-    m_e = hk.Linear(self.mid_size)
-    m_g = hk.Linear(self.mid_size)
-
-    o1 = hk.Linear(self.out_size)
-    o2 = hk.Linear(self.out_size)
-
-    msg_1 = m_1(z)
-    msg_2 = m_2(z)
-    msg_e = m_e(edge_fts)
-    msg_g = m_g(graph_fts)
-
-    # The message generator function is linear (psi)
-    msgs = (
-        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
-        msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
-    
-    ###############
-    ## The following code includes the operations needed for the computation of the
-    ## regularized loss.
-    ###############
-
-    def compute_node_update_scan(hidden, msgs):
-      # The node update is linear
-      h_1 = o1(hidden)
-      h_2 = o2(msgs)
-
-      ret = h_1 + h_2
-
-      # ReLU activation
-      if self.activation is not None:
-        ret = self.activation(ret)
-      # The hidden state of the node is propagated within the carry. The second
-      # return is None as it is not used, and it is only required by hk.scan
-      return ret, None
-    
-    # Number of messages to sample TODO: Pass through command line
-    num_samples_per_node = 2
-    # Randomly sample incoming messages for each node. sample_msgs has resulting shape [B, 2, N, H]
-    sampled_msgs = sample_msgs(msgs, adj_mat, num_samples_per_node)
-
-    sampled_msgs_reduced = jnp.sum(sampled_msgs, axis=1)
-
-    # Node update for the aggregated sampled messages (first component of the loss)
-    ret_loss_1, _ = compute_node_update_scan(hidden, sampled_msgs_reduced)
-    # The shape of sample messages is [B, num_samples_per_node, N, H], and the arguments
-    # in jax.lax.scan are passed through the leading dimension
-    sampled_msgs = jnp.transpose(sampled_msgs, (1, 0, 2, 3))
-    # Iterative updates for the sampled messages
-    ret_loss_2, _ = hk.scan(compute_node_update_scan, hidden, sampled_msgs, num_samples_per_node)
-    # Regularization term penalising the violation of the associativity in the node update
-    mse_loss = jnp.mean((ret_loss_1 - ret_loss_2)**2)
-
-    ###############
-    ## End of code for computing the regularized loss.
-    ###############
-
-    # The reduction is a sum
-    msgs = jnp.sum(msgs * jnp.expand_dims(adj_mat, -1), axis=1)
-
-    # Computation of h_{i}^{(t)}=f_{r}(z_{i}^{(t)}, m_{i}^{(t)})
-    ret, _ = compute_node_update_scan(hidden, msgs)
-
-    return ret, None, mse_loss  # pytype: disable=bad-return-type  # numpy-scalars
+    return ret, ret, None, asynchrony_losses  # pytype: disable=bad-return-type  # numpy-scalars
   
 class PGN_L2(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
@@ -1147,13 +1017,16 @@ class PGN_L2(Processor):
       mid_size: Optional[int] = None,
       mid_act: Optional[_Fn] = None,
       activation: Optional[_Fn] = None,
-      reduction: _Fn = jnp.sum,
+      reduction: _Fn = jnp.max,
+      arg_reduction: _Fn = jnp.max,
       msgs_mlp_sizes: Optional[List[int]] = None,
       use_ln: bool = False,
       use_triplets: bool = False,
       nb_triplet_fts: int = 8,
       gated: bool = False,
       name: str = 'mpnn_l2',
+      num_messages_sample: int = 2,
+      num_nodes_sample: int = 8,
   ):
     super().__init__(name=name)
     if mid_size is None:
@@ -1163,13 +1036,16 @@ class PGN_L2(Processor):
     self.out_size = out_size
     self.mid_act = mid_act
     # Same as in Asynchronous Algorithmic Alignment with Cocycles
-    self.activation = jax.nn.relu
-    self.reduction = jnp.max
+    self.activation = activation
+    self.reduction = reduction
+    self.arg_reduction = arg_reduction
     self._msgs_mlp_sizes = msgs_mlp_sizes
     self.use_ln = use_ln
     self.use_triplets = use_triplets
     self.nb_triplet_fts = nb_triplet_fts
     self.gated = gated
+    self.num_messages_sample = num_messages_sample
+    self.num_nodes_sample = num_nodes_sample
 
   def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
       self,
@@ -1178,6 +1054,7 @@ class PGN_L2(Processor):
       graph_fts: _Array,
       adj_mat: _Array,
       hidden: _Array,
+      node_args: _Array,
       **unused_kwargs,
   ) -> _Array:
     """MPNN inference step."""
@@ -1187,66 +1064,77 @@ class PGN_L2(Processor):
     assert graph_fts.shape[:-1] == (b,)
     assert adj_mat.shape == (b, n, n)
 
-    z = jnp.concatenate([node_fts, hidden], axis=-1)
     m_1 = hk.Linear(self.mid_size)
     m_2 = hk.Linear(self.mid_size)
     m_e = hk.Linear(self.mid_size)
     m_g = hk.Linear(self.mid_size)
 
-    msg_1 = m_1(z)
-    msg_2 = m_2(z)
-    msg_e = m_e(edge_fts)
-    msg_g = m_g(graph_fts)
-
-    # The message generator function is linear (psi)
-    msgs = (
-        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
-        msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
+    ###############
+    ## Functions to compute message passing steps
+    ###############
     
-    ###############
-    ## The following code includes the operations needed for the computation of the
-    ## regularized loss.
-    ###############
+    # Definition of msg_generation_fn
+    def compute_messages(args_receivers, args_senders, node_fts_receivers, node_fts_senders, edge_fts, graph_fts):
 
+      z_1 = jnp.concatenate([node_fts_receivers, args_receivers], axis=-1)
+      z_2 = jnp.concatenate([node_fts_senders, args_senders], axis=-1)
+      msg_1 = m_1(z_1)
+      msg_2 = m_2(z_2)
+      msg_e = m_e(edge_fts)
+      msg_g = m_g(graph_fts)
+
+      # The message generator function is linear (psi)
+      msgs = (
+          jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
+          msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
+      
+      return msgs
+    
     def compute_node_update_scan(hidden, msgs):
       # The node update is the maximum
       ret = jnp.maximum(hidden, msgs)
       # The hidden state of the node is propagated within the carry. The second
       # return is None as it is not used, and it is only required by hk.scan
-      return ret, None
+      return ret, ret
+
+    ###############
+    ## End of functions to compute message passing steps
+    ###############
     
-    # Number of messages to sample TODO: Pass through command line
-    num_samples_per_node = 2
-    # Randomly sample incoming messages for each node. sample_msgs has resulting shape [B, 2, N, H]
-    sampled_msgs = sample_msgs(msgs, adj_mat, num_samples_per_node)
+    # Compute messages that are propagated
+    msgs = compute_messages(hidden, hidden, node_fts, node_fts, edge_fts, graph_fts)
 
-    sampled_msgs_reduced = jnp.max(sampled_msgs, axis=1)
-
-    # Node update for the aggregated sampled messages (first component of the loss)
-    ret_loss_1, _ = compute_node_update_scan(hidden, sampled_msgs_reduced)
-    # The shape of sample messages is [B, num_samples_per_node, N, H], and the arguments
-    # in jax.lax.scan are passed through the leading dimension
-    sampled_msgs = jnp.transpose(sampled_msgs, (1, 0, 2, 3))
-    # Iterative updates for the sampled messages
-    ret_loss_2, _ = hk.scan(compute_node_update_scan, hidden, sampled_msgs, num_samples_per_node)
-    # Regularization term penalising the violation of the associativity in the node update
-    mse_loss = jnp.mean((ret_loss_1 - ret_loss_2)**2)
+    # Compute asynchrony losses
+    asynchrony_losses = compute_asynchrony_losses(
+      self.num_messages_sample, 
+      self.num_nodes_sample, 
+      hidden, 
+      hidden,
+      msgs, 
+      adj_mat, 
+      node_fts, 
+      edge_fts, 
+      graph_fts, 
+      self.reduction,
+      self.arg_reduction,
+      compute_node_update_scan, 
+      compute_node_update_scan,
+      compute_messages
+    )
 
     ###############
     ## End of code for computing the regularized loss.
     ###############
 
-    # The reduction is a max
-    maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
-                         msgs,
-                         -BIG_NUMBER)
-    msgs = jnp.max(maxarg, axis=1)
+    # Computes m_{i}^{(t)} as a reduction over f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)}), 
+    # e.g. m_{i}^{(t)}=max_{1 \leq j \leq n}f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)})
+    msgs = apply_msg_reduction(self.reduction, msgs, adj_mat)
 
-    # The node update is linear
-    ret = jnp.maximum(hidden, msgs)
+    # The node update is the maximum
+    ret, _ = compute_node_update_scan(hidden, msgs)
 
-    return ret, None, mse_loss # pytype: disable=bad-return-type  # numpy-scalars
-  
+    return ret, ret, None, asynchrony_losses # pytype: disable=bad-return-type  # numpy-scalars
+
 class PGN_L3(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
 
@@ -1256,13 +1144,16 @@ class PGN_L3(Processor):
       mid_size: Optional[int] = None,
       mid_act: Optional[_Fn] = None,
       activation: Optional[_Fn] = None,
-      reduction: _Fn = jnp.sum,
+      reduction: _Fn = jnp.max,
+      arg_reduction: _Fn = jnp.max,
       msgs_mlp_sizes: Optional[List[int]] = None,
       use_ln: bool = False,
       use_triplets: bool = False,
       nb_triplet_fts: int = 8,
       gated: bool = False,
-      name: str = 'mpnn_l2',
+      name: str = 'mpnn_l3',
+      num_messages_sample: int = 2,
+      num_nodes_sample: int = 8,
   ):
     super().__init__(name=name)
     if mid_size is None:
@@ -1272,13 +1163,16 @@ class PGN_L3(Processor):
     self.out_size = out_size
     self.mid_act = mid_act
     # Same as in Asynchronous Algorithmic Alignment with Cocycles
-    self.activation = jax.nn.relu
-    self.reduction = jnp.max
+    self.activation = activation
+    self.reduction = reduction
+    self.arg_reduction = arg_reduction
     self._msgs_mlp_sizes = msgs_mlp_sizes
     self.use_ln = use_ln
     self.use_triplets = use_triplets
     self.nb_triplet_fts = nb_triplet_fts
     self.gated = gated
+    self.num_messages_sample = num_messages_sample
+    self.num_nodes_sample = num_nodes_sample
 
   def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
       self,
@@ -1287,6 +1181,7 @@ class PGN_L3(Processor):
       graph_fts: _Array,
       adj_mat: _Array,
       hidden: _Array,
+      node_args: _Array,
       **unused_kwargs,
   ) -> _Array:
     """MPNN inference step."""
@@ -1299,25 +1194,429 @@ class PGN_L3(Processor):
     m_1 = TropicalLinear(self.mid_size)
     m_2 = TropicalLinear(self.mid_size)
 
-    msg_1 = m_1(hidden)
-    msg_2 = m_2(hidden)
+    m_1_input = hk.Linear(self.mid_size)
+    m_2_input = hk.Linear(self.mid_size)
+    m_e = hk.Linear(self.mid_size)
+    m_g = hk.Linear(self.mid_size)
 
-    # The message generator function is linear (psi)
-    msgs = (
-        jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2)
+    ###############
+    ## The following code includes the operations needed to compute losses
+    ###############
+
+    # Definition of msg_generation_fn
+    def compute_messages(args_receivers, args_senders, node_fts_receivers, node_fts_senders, edge_fts, graph_fts):
+
+      msg_1_input = m_1_input(node_fts_receivers)
+      msg_2_input = m_2_input(node_fts_senders)
+      msg_e = m_e(edge_fts)
+      msg_g = m_g(graph_fts)
+
+      msg_1 = m_1(args_receivers)
+      msg_2 = m_2(args_senders)
+
+      # The message generator function is linear (psi)
+      msgs = (
+          jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
+          jnp.expand_dims(msg_1_input, axis=1) + jnp.expand_dims(msg_2_input, axis=2) +
+          msg_e + jnp.expand_dims(msg_g, axis=(1, 2))
+      )
+
+      return msgs
+
+    # Definition of node_update_scan_fn
+    def compute_node_update_scan(hidden, msgs):
+      # The node update is the maximum
+      ret = jnp.maximum(hidden, msgs)
+      # The hidden state of the node is propagated within the carry, and it is also accumulated
+      # during hk.scan
+      return ret, ret
+    
+    ###############
+    ## End of operations to compute losses
+    ###############
+
+    # Compute messages
+    msgs = compute_messages(hidden, hidden, node_fts, node_fts, edge_fts, graph_fts)
+
+    # Call to code to compute losses
+    asynchrony_losses = compute_asynchrony_losses(
+      self.num_messages_sample, 
+      self.num_nodes_sample,
+      hidden, 
+      hidden, 
+      msgs, 
+      adj_mat, 
+      node_fts, 
+      edge_fts, 
+      graph_fts, 
+      self.reduction, 
+      self.arg_reduction, 
+      compute_node_update_scan, 
+      compute_node_update_scan, 
+      compute_messages
     )
-  
-    # The reduction is a max
-    maxarg = jnp.where(jnp.expand_dims(adj_mat, -1),
-                         msgs,
-                         -BIG_NUMBER)
-    msgs = jnp.max(maxarg, axis=1)
 
-    # The node update is linear
-    ret = jnp.maximum(hidden, msgs)
+    # Computes m_{i}^{(t)} as a reduction over f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)}), 
+    # e.g. m_{i}^{(t)}=max_{1 \leq j \leq n}f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)})
+    msgs = apply_msg_reduction(self.reduction, msgs, adj_mat)
 
-    return ret, None, jnp.array(0.) # pytype: disable=bad-return-type  # numpy-scalars
+    ret, _ = compute_node_update_scan(hidden, msgs)
+
+    return ret, ret, None, asynchrony_losses # pytype: disable=bad-return-type  # numpy-scalars
   
+class PGN_L2_L3(Processor):
+  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
+
+  def __init__(
+      self,
+      out_size: int,
+      mid_size: Optional[int] = None,
+      mid_act: Optional[_Fn] = None,
+      activation: Optional[_Fn] = jax.nn.relu,
+      reduction: _Fn = jnp.max,
+      arg_reduction: _Fn = jnp.max,
+      msgs_mlp_sizes: Optional[List[int]] = None,
+      use_ln: bool = False,
+      use_triplets: bool = False,
+      nb_triplet_fts: int = 8,
+      gated: bool = False,
+      name: str = 'mpnn_l2_l3',
+      num_messages_sample: int = 2,
+      num_nodes_sample: int = 8,
+  ):
+    super().__init__(name=name)
+    if mid_size is None:
+      self.mid_size = out_size
+    else:
+      self.mid_size = mid_size
+    self.out_size = out_size
+    self.mid_act = mid_act
+    # Same as in Asynchronous Algorithmic Alignment with Cocycles
+    self.activation = activation
+    self.reduction = reduction
+    self.arg_reduction = arg_reduction
+    self._msgs_mlp_sizes = msgs_mlp_sizes
+    self.use_ln = use_ln
+    self.use_triplets = use_triplets
+    self.nb_triplet_fts = nb_triplet_fts
+    self.gated = gated
+    self.num_messages_sample = num_messages_sample
+    self.num_nodes_sample = num_nodes_sample
+
+  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
+      self,
+      node_fts: _Array,
+      edge_fts: _Array,
+      graph_fts: _Array,
+      adj_mat: _Array,
+      hidden: _Array,
+      node_args: _Array,
+      **unused_kwargs,
+  ) -> _Array:
+    """MPNN inference step."""
+
+    b, n, _ = node_fts.shape
+    assert edge_fts.shape[:-1] == (b, n, n)
+    assert graph_fts.shape[:-1] == (b,)
+    assert adj_mat.shape == (b, n, n)
+
+    m_1 = hk.Linear(self.mid_size)
+    m_2 = hk.Linear(self.mid_size)
+
+    m_1_input = hk.Linear(self.mid_size)
+    m_2_input = hk.Linear(self.mid_size)
+    m_e = hk.Linear(self.mid_size)
+    m_g = hk.Linear(self.mid_size)
+
+    o1 = hk.Linear(self.out_size)
+    o2 = hk.Linear(self.out_size)
+
+    if self.use_ln:
+      # Use LayerNorm to prevent great losses observed when using sum aggregation
+      ln = hk.LayerNorm(axis=-1, create_scale=True, create_offset=True)
+
+    ###############
+    ## The following code includes the operations needed to compute losses
+    ###############
+
+    # Definition of msg_generation_fn
+    def compute_messages(args_receivers, args_senders, node_fts_receivers, node_fts_senders, edge_fts, graph_fts):
+
+      msg_1_input = m_1_input(node_fts_receivers)
+      msg_2_input = m_2_input(node_fts_senders)
+      msg_e = m_e(edge_fts)
+      msg_g = m_g(graph_fts)
+
+      msg_1 = m_1(args_receivers)
+      msg_2 = m_2(args_senders)
+
+      # The message generator function is linear (psi)
+      msgs = (
+          jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
+          jnp.expand_dims(msg_1_input, axis=1) + jnp.expand_dims(msg_2_input, axis=2) +
+          msg_e + jnp.expand_dims(msg_g, axis=(1, 2))
+      )
+
+      return msgs
+
+    # Definition of node_update_scan_fn
+    def compute_node_update_scan(hidden, msgs):
+      # The node update is the maximum
+      ret = jnp.maximum(hidden, msgs)
+      # The hidden state of the node is propagated within the carry. The second
+      # return is None as it is not used, and it is only required by hk.scan
+      return ret, ret
+    
+    # Definition of arg_update_scan_fn
+    def compute_arg_update_scan(hidden, msgs):
+      # The arg update is linear
+      h_1 = o1(hidden)
+      h_2 = o2(msgs)
+
+      ret = h_1 + h_2
+
+      # ReLU activation
+      if self.activation is not None:
+        ret = self.activation(ret)
+
+      if self.use_ln:
+        ret = ln(ret)
+      
+      # The arguments generated at the node are propagated within the carry.
+      return ret, ret
+    
+    ###############
+    ## End of operations to compute losses
+    ###############
+
+    # Compute messages
+    msgs = compute_messages(node_args, node_args, node_fts, node_fts, edge_fts, graph_fts)
+
+    # Call to code to compute losses
+    asynchrony_losses = compute_asynchrony_losses(
+      self.num_messages_sample, 
+      self.num_nodes_sample, 
+      hidden, 
+      node_args, 
+      msgs, 
+      adj_mat, 
+      node_fts, 
+      edge_fts, 
+      graph_fts, 
+      self.reduction, 
+      self.arg_reduction, 
+      compute_node_update_scan, 
+      compute_arg_update_scan, 
+      compute_messages
+    )
+
+    # Computes m_{i}^{(t)} as a reduction over f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)}), 
+    # e.g. m_{i}^{(t)}=max_{1 \leq j \leq n}f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)})
+    msgs = apply_msg_reduction(self.reduction, msgs, adj_mat)
+
+    ret, _ = compute_node_update_scan(hidden, msgs)
+    args, _ = compute_arg_update_scan(hidden, msgs)
+
+    return ret, args, None, asynchrony_losses # pytype: disable=bad-return-type  # numpy-scalars
+  
+class PGN_L1_L3(Processor):
+  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
+
+  def __init__(
+      self,
+      out_size: int,
+      mid_size: Optional[int] = None,
+      mid_act: Optional[_Fn] = None,
+      activation: Optional[_Fn] = jax.nn.relu,
+      reduction: _Fn = jnp.max,
+      arg_reduction: _Fn = jnp.max,
+      msgs_mlp_sizes: Optional[List[int]] = None,
+      use_ln: bool = False,
+      use_triplets: bool = False,
+      nb_triplet_fts: int = 8,
+      gated: bool = False,
+      name: str = 'mpnn_l1_l3',
+      num_messages_sample: int = 2,
+      num_nodes_sample: int = 8,
+  ):
+    super().__init__(name=name)
+    if mid_size is None:
+      self.mid_size = out_size
+    else:
+      self.mid_size = mid_size
+    self.out_size = out_size
+    self.mid_act = mid_act
+    # Same as in Asynchronous Algorithmic Alignment with Cocycles
+    self.activation = activation
+    self.reduction = reduction
+    self.arg_reduction = arg_reduction
+    self._msgs_mlp_sizes = msgs_mlp_sizes
+    self.use_ln = use_ln
+    self.use_triplets = use_triplets
+    self.nb_triplet_fts = nb_triplet_fts
+    self.gated = gated
+    self.num_messages_sample = num_messages_sample
+    self.num_nodes_sample = num_nodes_sample
+
+  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
+      self,
+      node_fts: _Array,
+      edge_fts: _Array,
+      graph_fts: _Array,
+      adj_mat: _Array,
+      hidden: _Array,
+      node_args: _Array,
+      **unused_kwargs,
+  ) -> _Array:
+    """MPNN inference step."""
+
+    b, n, _ = node_fts.shape
+    assert edge_fts.shape[:-1] == (b, n, n)
+    assert graph_fts.shape[:-1] == (b,)
+    assert adj_mat.shape == (b, n, n)
+
+    m_1 = hk.Linear(self.mid_size)
+    m_2 = hk.Linear(self.mid_size)
+
+    m_1_input = hk.Linear(self.mid_size)
+    m_2_input = hk.Linear(self.mid_size)
+    m_e = hk.Linear(self.mid_size)
+    m_g = hk.Linear(self.mid_size)
+
+    o1 = hk.Linear(self.out_size)
+    o2 = hk.Linear(self.out_size)
+
+    o3 = hk.Linear(self.out_size)
+    o4 = hk.Linear(self.out_size)
+
+    if self.use_ln:
+      # Use LayerNorm to prevent great losses observed when using sum aggregation
+      ln_1 = hk.LayerNorm(axis=-1, create_scale=True, create_offset=True)
+      ln_2 = hk.LayerNorm(axis=-1, create_scale=True, create_offset=True)
+
+    ###############
+    ## The following code includes the operations needed to compute losses
+    ###############
+
+    # Definition of msg_generation_fn
+    def compute_messages(args_receivers, args_senders, node_fts_receivers, node_fts_senders, edge_fts, graph_fts):
+
+      msg_1_input = m_1_input(node_fts_receivers)
+      msg_2_input = m_2_input(node_fts_senders)
+      msg_e = m_e(edge_fts)
+      msg_g = m_g(graph_fts)
+
+      msg_1 = m_1(args_receivers)
+      msg_2 = m_2(args_senders)
+
+      # The message generator function is linear (psi)
+      msgs = (
+          jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
+          jnp.expand_dims(msg_1_input, axis=1) + jnp.expand_dims(msg_2_input, axis=2) +
+          msg_e + jnp.expand_dims(msg_g, axis=(1, 2))
+      )
+
+      return msgs
+
+    def compute_node_update_scan(hidden, msgs):
+      # The node update is linear
+      h_1 = o1(hidden)
+      h_2 = o2(msgs)
+
+      ret = h_1 + h_2
+
+      # ReLU activation
+      if self.activation is not None:
+        ret = self.activation(ret)
+
+      # Include LayerNorm if needed
+      if self.use_ln:
+        ret = ln_1(ret)
+
+      # The hidden state of the node is propagated within the carry. The second
+      # return is None as it is not used, and it is only required by hk.scan
+      return ret, ret
+    
+    # Definition of arg_update_scan_fn
+    def compute_arg_update_scan(hidden, msgs):
+      # The arg update is linear
+      h_1 = o3(hidden)
+      h_2 = o4(msgs)
+
+      ret = h_1 + h_2
+
+      # ReLU activation
+      if self.activation is not None:
+        ret = self.activation(ret)
+
+      if self.use_ln:
+        ret = ln_2(ret)
+      
+      # The arguments generated at the node are propagated within the carry.
+      return ret, ret
+    
+    ###############
+    ## End of operations to compute losses
+    ###############
+
+    # Compute messages
+    msgs = compute_messages(node_args, node_args, node_fts, node_fts, edge_fts, graph_fts)
+
+    # Call to code to compute losses
+    asynchrony_losses = compute_asynchrony_losses(
+      self.num_messages_sample, 
+      self.num_nodes_sample, 
+      hidden, 
+      node_args, 
+      msgs, 
+      adj_mat, 
+      node_fts, 
+      edge_fts, 
+      graph_fts, 
+      self.reduction, 
+      self.arg_reduction, 
+      compute_node_update_scan, 
+      compute_arg_update_scan, 
+      compute_messages
+    )
+
+    # Computes m_{i}^{(t)} as a reduction over f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)}), 
+    # e.g. m_{i}^{(t)}=max_{1 \leq j \leq n}f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)})
+    msgs = apply_msg_reduction(self.reduction, msgs, adj_mat)
+
+    ret, _ = compute_node_update_scan(hidden, msgs)
+    args, _ = compute_arg_update_scan(hidden, msgs)
+
+    return ret, args, None, asynchrony_losses # pytype: disable=bad-return-type  # numpy-scalars
+
+class LinearPGN(PGN):
+  """PGN Network without nonlinearities"""
+
+  def __init__(
+      self,
+      out_size: int,
+      mid_size: Optional[int] = None,
+      reduction: _Fn = jnp.max,
+      msgs_mlp_sizes: Optional[List[int]] = None,
+      use_ln: bool = False,
+      use_triplets: bool = False,
+      nb_triplet_fts: int = 8,
+      gated: bool = False,
+      name: str = 'linear_pgn',
+  ):
+    super().__init__(out_size=out_size,
+                     mid_size=mid_size,
+                     mid_act=None,
+                     activation=None,
+                     reduction=reduction,
+                     msgs_mlp_sizes=msgs_mlp_sizes,
+                     use_ln=use_ln,
+                     use_triplets=use_triplets,
+                     nb_triplet_fts=nb_triplet_fts,
+                     gated=gated,
+                     force_linear=True,
+                     name=name)
+
 class DeepSets(PGN):
   """Deep Sets (Zaheer et al., NeurIPS 2017)."""
 
@@ -1342,50 +1641,41 @@ class MPNN_L1(PGN_L1):
   """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
 
   def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
-               adj_mat: _Array, hidden: _Array, **unused_kwargs) -> _Array:
+               adj_mat: _Array, hidden: _Array, node_args: _Array, **unused_kwargs) -> _Array:
     adj_mat = jnp.ones_like(adj_mat)
-    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden)
+    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden, node_args)
   
-class MPNN_L1_Max(PGN_L1_Max):
-  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
-
-  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
-               adj_mat: _Array, hidden: _Array, **unused_kwargs) -> _Array:
-    adj_mat = jnp.ones_like(adj_mat)
-    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden)
-  
-class MPNN_L1_Residual(PGN_L1_Residual):
-  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
-
-  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
-               adj_mat: _Array, hidden: _Array, **unused_kwargs) -> _Array:
-    adj_mat = jnp.ones_like(adj_mat)
-    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden)
-  
-class MPNN_L1_Regularised(PGN_L1_Regularised):
-  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
-
-  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
-               adj_mat: _Array, hidden: _Array, **unused_kwargs) -> _Array:
-    adj_mat = jnp.ones_like(adj_mat)
-    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden)
-  
-class MPNN_L1_Regularised_Max(PGN_L1_Regularised_Max):
-  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
-
-  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
-               adj_mat: _Array, hidden: _Array, **unused_kwargs) -> _Array:
-    adj_mat = jnp.ones_like(adj_mat)
-    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden)
-
 class MPNN_L2(PGN_L2):
   """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
 
   def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
-               adj_mat: _Array, hidden: _Array, **unused_kwargs) -> _Array:
+               adj_mat: _Array, hidden: _Array, node_args: _Array, **unused_kwargs) -> _Array:
     adj_mat = jnp.ones_like(adj_mat)
-    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden)
+    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden, node_args)
+  
+class MPNN_L3(PGN_L3):
+  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
 
+  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
+               adj_mat: _Array, hidden: _Array, node_args: _Array, **unused_kwargs) -> _Array:
+    adj_mat = jnp.ones_like(adj_mat)
+    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden, node_args)
+  
+class MPNN_L2_L3(PGN_L2_L3):
+  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
+
+  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
+               adj_mat: _Array, hidden: _Array, node_args: _Array, **unused_kwargs) -> _Array:
+    adj_mat = jnp.ones_like(adj_mat)
+    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden, node_args)
+  
+class MPNN_L1_L3(PGN_L1_L3):
+  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
+
+  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
+               adj_mat: _Array, hidden: _Array, node_args: _Array, **unused_kwargs) -> _Array:
+    adj_mat = jnp.ones_like(adj_mat)
+    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden, node_args)
 
 class PGNMask(PGN):
   """Masked Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
@@ -1601,7 +1891,10 @@ ProcessorFactory = Callable[[int], Processor]
 def get_processor_factory(kind: str,
                           use_ln: bool,
                           nb_triplet_fts: int,
-                          nb_heads: Optional[int] = None) -> ProcessorFactory:
+                          nb_heads: Optional[int] = None,
+                          reduction: Optional[_Fn] = jnp.max,
+                          num_messages_sample: int = 2,
+                          num_nodes_sample: int = 8) -> ProcessorFactory:
   """Returns a processor factory.
 
   Args:
@@ -1673,7 +1966,17 @@ def get_processor_factory(kind: str,
           use_ln=use_ln,
           use_triplets=False,
           nb_triplet_fts=0,
+          reduction=reduction
       )
+    elif kind == 'pgnlin':
+      processor = LinearPGN(
+        out_size=out_size,
+        msgs_mlp_sizes=[out_size, out_size],
+        use_ln=use_ln,
+        use_triplets=False,
+        nb_triplet_fts=0,
+        reduction=reduction
+        )
     elif kind == 'pgn_mask':
       processor = PGNMask(
           out_size=out_size,
@@ -1681,6 +1984,7 @@ def get_processor_factory(kind: str,
           use_ln=use_ln,
           use_triplets=False,
           nb_triplet_fts=0,
+          reduction=reduction
       )
     elif kind == 'triplet_mpnn':
       processor = MPNN(
@@ -1689,6 +1993,7 @@ def get_processor_factory(kind: str,
           use_ln=use_ln,
           use_triplets=True,
           nb_triplet_fts=nb_triplet_fts,
+          reduction=reduction
       )
     elif kind == 'triplet_pgn':
       processor = PGN(
@@ -1697,6 +2002,7 @@ def get_processor_factory(kind: str,
           use_ln=use_ln,
           use_triplets=True,
           nb_triplet_fts=nb_triplet_fts,
+          reduction=reduction
       )
     elif kind == 'triplet_pgn_mask':
       processor = PGNMask(
@@ -1759,60 +2065,113 @@ def get_processor_factory(kind: str,
           use_triplets=True,
           nb_triplet_fts=nb_triplet_fts,
           gated=True,
+          reduction=reduction
       )
     elif kind == 'mpnn_l1':
       processor = MPNN_L1(
           out_size=out_size,
+          activation=jax.nn.relu,
+          reduction=jnp.sum,
+          arg_reduction=jnp.sum,
           msgs_mlp_sizes=None,
-          use_ln=False,
+          use_ln=use_ln,
           use_triplets=False,
           nb_triplet_fts=nb_triplet_fts,
           gated=False,
+          num_messages_sample=num_messages_sample,
+          num_nodes_sample=num_nodes_sample,
       )
     elif kind == 'mpnn_l1_max':
-      processor = MPNN_L1_Max(
+      processor = MPNN_L1(
           out_size=out_size,
+          activation=jax.nn.relu,
+          reduction=jnp.max,
+          arg_reduction=jnp.max,
           msgs_mlp_sizes=None,
           use_ln=False,
           use_triplets=False,
           nb_triplet_fts=nb_triplet_fts,
           gated=False,
-      )
-    elif kind == 'mpnn_l1_residual':
-      processor = MPNN_L1_Residual(
-          out_size=out_size,
-          msgs_mlp_sizes=None,
-          use_ln=False,
-          use_triplets=False,
-          nb_triplet_fts=nb_triplet_fts,
-          gated=False,
-      )
-    elif kind == 'mpnn_l1_regularised':
-      processor = MPNN_L1_Regularised(
-          out_size=out_size,
-          msgs_mlp_sizes=None,
-          use_ln=False,
-          use_triplets=False,
-          nb_triplet_fts=nb_triplet_fts,
-          gated=False,
-      )
-    elif kind == 'mpnn_l1_regularised_max':
-      processor = MPNN_L1_Regularised_Max(
-          out_size=out_size,
-          msgs_mlp_sizes=None,
-          use_ln=False,
-          use_triplets=False,
-          nb_triplet_fts=nb_triplet_fts,
-          gated=False,
+          num_messages_sample=num_messages_sample,
+          num_nodes_sample=num_nodes_sample,
       )
     elif kind == 'mpnn_l2':
       processor = MPNN_L2(
           out_size=out_size,
+          reduction=jnp.max,
+          arg_reduction=jnp.max,
           msgs_mlp_sizes=None,
           use_ln=False,
           use_triplets=False,
           nb_triplet_fts=nb_triplet_fts,
           gated=False,
+      )
+    elif kind == 'mpnn_l3':
+      processor = MPNN_L3(
+          out_size=out_size,
+          reduction=jnp.max,
+          arg_reduction=jnp.max,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+      )
+    elif kind == 'mpnn_l2_l3':
+      processor = MPNN_L2_L3(
+          out_size=out_size,
+          activation=jax.nn.relu,
+          reduction=jnp.max,
+          arg_reduction=jnp.sum,
+          msgs_mlp_sizes=None,
+          use_ln=use_ln,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+          num_messages_sample=num_messages_sample,
+          num_nodes_sample=num_nodes_sample,
+      )
+    elif kind == 'mpnn_l2_l3_max':
+      processor = MPNN_L2_L3(
+          out_size=out_size,
+          activation=jax.nn.relu,
+          reduction=jnp.max,
+          arg_reduction=jnp.max,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+          num_messages_sample=num_messages_sample,
+          num_nodes_sample=num_nodes_sample,
+      )
+    elif kind == 'mpnn_l1_l3':
+      processor = MPNN_L1_L3(
+          out_size=out_size,
+          activation=jax.nn.relu,
+          reduction=jnp.sum,
+          arg_reduction=jnp.sum,
+          msgs_mlp_sizes=None,
+          use_ln=use_ln,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+          num_messages_sample=num_messages_sample,
+          num_nodes_sample=num_nodes_sample,
+      )
+    elif kind == 'mpnn_l1_l3_max':
+      processor = MPNN_L1_L3(
+          out_size=out_size,
+          activation=jax.nn.relu,
+          reduction=jnp.max,
+          arg_reduction=jnp.max,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+          num_messages_sample=num_messages_sample,
+          num_nodes_sample=num_nodes_sample,
       )
     else:
       raise ValueError('Unexpected processor kind ' + kind)

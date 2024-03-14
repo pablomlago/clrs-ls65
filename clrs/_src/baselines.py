@@ -155,7 +155,10 @@ class BaselineModel(model.Model):
       hint_repred_mode: str = 'soft',
       name: str = 'base_model',
       nb_msg_passing_steps: int = 1,
-      regularisation_weight: float = 0.0,
+      noise_mode: str = 'Noisefree',
+      decay: float = 1.0,
+      regularisation_weight_l2: float = 0.0,
+      regularisation_weight_l3: float = 0.0,
       bound_regularisation_loss: bool = False,
       max_proportion_regularisation: float = 0.0,
   ):
@@ -226,7 +229,8 @@ class BaselineModel(model.Model):
       self.opt = optax.adam(learning_rate)
 
     self.nb_msg_passing_steps = nb_msg_passing_steps
-    self.regularisation_weight = regularisation_weight
+    self.regularisation_weight_l2 = regularisation_weight_l2
+    self.regularisation_weight_l3 = regularisation_weight_l3
     self.bound_regularisation_loss = bound_regularisation_loss
     self.max_proportion_regularisation = max_proportion_regularisation
 
@@ -250,6 +254,8 @@ class BaselineModel(model.Model):
     self._device_params = None
     self._device_opt_state = None
     self.opt_state_skeleton = None
+    self.noise_mode = noise_mode
+    self.decay = decay
 
   def _create_net_fns(self, hidden_dim, encode_hints, processor_factory,
                       use_lstm, encoder_init, dropout_prob,
@@ -259,7 +265,8 @@ class BaselineModel(model.Model):
                       processor_factory, use_lstm, encoder_init,
                       dropout_prob, hint_teacher_forcing,
                       hint_repred_mode,
-                      self.nb_dims, self.nb_msg_passing_steps)(*args, **kwargs)
+                      self.nb_dims, self.nb_msg_passing_steps,
+                      self.noise_mode, self.decay)(*args, **kwargs)
 
     self.net_fn = hk.transform(_use_net)
     pmap_args = dict(axis_name='batch', devices=jax.local_devices())
@@ -287,7 +294,8 @@ class BaselineModel(model.Model):
     self.params = self.net_fn.init(jax.random.PRNGKey(seed), features, True,  # pytype: disable=wrong-arg-types  # jax-ndarray
                                    algorithm_index=-1,
                                    return_hints=False,
-                                   return_all_outputs=False)
+                                   return_all_outputs=False,
+                                   return_all_features=False)
     self.opt_state = self.opt.init(self.params)
     # We will use the optimizer state skeleton for traversal when we
     # want to avoid updating the state of params of untrained algorithms.
@@ -329,19 +337,36 @@ class BaselineModel(model.Model):
 
   def _predict(self, params, rng_key: hk.PRNGSequence, features: _Features,
                algorithm_index: int, return_hints: bool,
-               return_all_outputs: bool):
-    outs, hint_preds, _ = self.net_fn.apply(
+               return_all_outputs: bool, return_all_features: bool):
+    outs, hint_preds, trajs, asynchrony_information = self.net_fn.apply(
         params, rng_key, [features],
         repred=True, algorithm_index=algorithm_index,
         return_hints=return_hints,
-        return_all_outputs=return_all_outputs)
+        return_all_outputs=return_all_outputs,
+        return_all_features=return_all_features)
+    
+    # Calculate mse_loss on validation
+    jax.debug.print(
+      ("[DEBUG-VAL] L2_loss: {l2_loss}, L2_regularisation_weight: {l2_reg_weight}, "
+        "L3_loss: {l3_loss}, L3_regularisation_weight: {l3_reg_weight}, "
+        "L3_cocycle_loss: {l3_cocycle_loss}, L3_multimorphism_loss: {l3_multimorphism_loss}"
+      ),
+      l2_loss=asynchrony_information.l2_loss,
+      l2_reg_weight=self.regularisation_weight_l2,
+      l3_loss=(asynchrony_information.l3_cocycle_loss+asynchrony_information.l3_multimorphism_loss)/2.,
+      l3_reg_weight=self.regularisation_weight_l3,
+      l3_cocycle_loss=asynchrony_information.l3_cocycle_loss,
+      l3_multimorphism_loss=asynchrony_information.l3_multimorphism_loss,
+    )
+
     outs = decoders.postprocess(self._spec[algorithm_index],
                                 outs,
                                 sinkhorn_temperature=0.1,
                                 sinkhorn_steps=50,
                                 hard=True,
                                 )
-    return outs, hint_preds
+    
+    return outs, hint_preds, (trajs, asynchrony_information)
 
   def compute_grad(
       self,
@@ -383,7 +408,8 @@ class BaselineModel(model.Model):
   def predict(self, rng_key: hk.PRNGSequence, features: _Features,
               algorithm_index: Optional[int] = None,
               return_hints: bool = False,
-              return_all_outputs: bool = False):
+              return_all_outputs: bool = False,
+              return_all_features: bool = False):
     """Model inference step."""
     if algorithm_index is None:
       assert len(self._spec) == 1
@@ -396,16 +422,18 @@ class BaselineModel(model.Model):
             self._device_params, rng_keys, features,
             algorithm_index,
             return_hints,
-            return_all_outputs))
+            return_all_outputs,
+            return_all_features))
 
   def _loss(self, params, rng_key, feedback, algorithm_index):
     """Calculates model loss f(feedback; params)."""
-    output_preds, hint_preds, mse_loss = self.net_fn.apply(
+    output_preds, hint_preds, _, asynchrony_information = self.net_fn.apply(
         params, rng_key, [feedback.features],
         repred=False,
         algorithm_index=algorithm_index,
         return_hints=True,
-        return_all_outputs=False)
+        return_all_outputs=False,
+        return_all_features=False)
 
     nb_nodes = _nb_nodes(feedback, is_chunked=False)
     lengths = feedback.features.lengths
@@ -429,19 +457,25 @@ class BaselineModel(model.Model):
             nb_nodes=nb_nodes,
         )
 
+    # Calculate regularisation loss components
+    regularisation_loss_l2 = self.regularisation_weight_l2 * asynchrony_information.l2_loss
+    regularisation_loss_l3 = self.regularisation_weight_l3 * (asynchrony_information.l3_cocycle_loss + asynchrony_information.l3_multimorphism_loss)/2.
     # TODO: Remove once validated, as it impacts performance
-    regularisation_loss = self.regularisation_weight * mse_loss
-    # Bound regularisation loss if required
-    if self.bound_regularisation_loss:
-      regularisation_loss = jnp.max(regularisation_loss, total_loss * self.max_proportion_regularisation)
-    jax.debug.print("[DEBUG] Regularised loss: {reg_loss}, Regularisation weight: {reg_weight}, MSE loss: {mse_loss}, Quality loss: {quality_loss}", 
-                    reg_loss=regularisation_loss, 
-                    reg_weight=self.regularisation_weight, 
-                    mse_loss=mse_loss,
-                    quality_loss=total_loss,
+    jax.debug.print(
+      ("[DEBUG] Quality_loss: {quality_loss}, L2_loss: {l2_loss}, L2_regularisation_weight: {l2_reg_weight}, "
+        "L3_loss: {l3_loss}, L3_regularisation_weight: {l3_reg_weight}, "
+        "L3_cocycle_loss: {l3_cocycle_loss}, L3_multimorphism_loss: {l3_multimorphism_loss}"
+      ),
+      quality_loss=total_loss,
+      l2_loss=asynchrony_information.l2_loss,
+      l2_reg_weight=self.regularisation_weight_l2,
+      l3_loss=(asynchrony_information.l3_cocycle_loss+asynchrony_information.l3_multimorphism_loss)/2.,
+      l3_reg_weight=self.regularisation_weight_l3,
+      l3_cocycle_loss=asynchrony_information.l3_cocycle_loss,
+      l3_multimorphism_loss=asynchrony_information.l3_multimorphism_loss,
     )
 
-    return total_loss + regularisation_loss
+    return total_loss + regularisation_loss_l2 + regularisation_loss_l3
 
   def _update_params(self, params, grads, opt_state, algorithm_index):
     updates, opt_state = filter_null_grads(
@@ -531,7 +565,8 @@ class BaselineModelChunked(BaselineModel):
           self._spec, hidden_dim, encode_hints, self.decode_hints,
           processor_factory, use_lstm, encoder_init, dropout_prob,
           hint_teacher_forcing, hint_repred_mode,
-          self.nb_dims, self.nb_msg_passing_steps)(*args, **kwargs)
+          self.nb_dims, self.nb_msg_passing_steps,
+          self.noise_mode, self.decay)(*args, **kwargs)
 
     self.net_fn = hk.transform(_use_net)
     pmap_args = dict(axis_name='batch', devices=jax.local_devices())
@@ -586,7 +621,7 @@ class BaselineModelChunked(BaselineModel):
     raise NotImplementedError
 
   def _loss(self, params, rng_key, feedback, mp_state, algorithm_index):
-    (output_preds, hint_preds), mp_state = self.net_fn.apply(
+    (output_preds, hint_preds), mp_state, _trajs = self.net_fn.apply(
         params, rng_key, [feedback.features],
         [mp_state],
         repred=False,

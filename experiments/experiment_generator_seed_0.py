@@ -7,7 +7,8 @@ from pathlib import Path
 ###################################################
 # Only need to change this line experiments_to run
 ###################################################
-experiments_to_run = [129]# list(range(1,173)) [19,20,21, 22, 23, 24, 118, 122]
+experiments_to_run = list(range(194,198))
+test_flag = False
 ###################################################
 # No need to change anything below here
 ###################################################
@@ -42,6 +43,8 @@ with open(experiment_file_name, "r") as experiment_file:
                               f"--dataset_path {datasets_folder}/{experiment_id} "
                               f"--seed {43} "
                               )
+        if test_flag:
+            experiment_options += "--test "
         for key, value in experiment_args.items():
             if type(value) == bool:
                 if value:
@@ -68,6 +71,7 @@ with open(experiment_file_name, "r") as experiment_file:
             experiment_id=experiment_id,
             CRSid=CRSid,
             conda_environment=conda_environment,
+            test="_test" if test_flag else "",
         )
 
         # Write the rendered template to a new file or use it as needed

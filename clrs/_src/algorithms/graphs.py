@@ -1167,7 +1167,9 @@ def bellman_ford(A: _Array, s: int) -> _Out:
   msk = np.zeros(A.shape[0])
   d[s] = 0
   msk[s] = 1
+  # i = 0
   while True:
+    # i += 1
     prev_d = np.copy(d)
     prev_msk = np.copy(msk)
     probing.push(
@@ -1187,6 +1189,28 @@ def bellman_ford(A: _Array, s: int) -> _Out:
           msk[v] = 1
     if np.all(d == prev_d):
       break
+
+  """Use this to generate Fig 3 from the paper. Once the model is trained, 
+   only hint length is important, which can be controlled here easily."""
+  # probing.push(
+  #     probes,
+  #     specs.Stage.INPUT,
+  #     next_probe={
+  #         'pos': np.copy(A_pos) * 1.0 / A.shape[0],
+  #         's': probing.mask_one(s, A.shape[0]),
+  #         'A': np.copy(A),   # / max(np.max(d), 1) / 1.2,
+  #         'adj': probing.graph(np.copy(A))
+  #     })
+  # offset = 0
+  # for _ in range(max(i+offset, 1)):
+  #   probing.push(
+  #       probes,
+  #       specs.Stage.HINT,
+  #       next_probe={
+  #           'pi_h': np.copy(pi),
+  #           'd': np.copy(prev_d),
+  #           'msk': np.copy(prev_msk)
+  #       })
 
   probing.push(probes, specs.Stage.OUTPUT, next_probe={'pi': np.copy(pi)})
   probing.finalize(probes)
