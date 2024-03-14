@@ -675,5 +675,23 @@
     "199": {
         "processor_type": "mpnn_l1_l3_max",
         "algorithms": "bellman_ford"
+    }, 
+    "200": {
+        "processor_type": "mpnn_l1_l3_max",
+        "algorithms": "dfs",
+        "regularisation_weight_l2": 0.1,
+        "regularisation_weight_l3": 0.1
+    }, 
+    "201": {
+        "processor_type": "mpnn_l1_l3_max",
+        "algorithms": "articulation",
+        "regularisation_weight_l2": 0.1,
+        "regularisation_weight_l3": 0.1
+    }, 
+    "202": {
+        "processor_type": "mpnn_l1_l3_max",
+        "algorithms": "bubble_sort",
+        "regularisation_weight_l2": 0.1,
+        "regularisation_weight_l3": 0.1
     }
 }
