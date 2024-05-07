@@ -21,6 +21,13 @@ algorithms = [
     "quickselect",
 ]
 architectures = {
+    "mpnn_l1_l3_max": {
+        "regularisation_weight_l2": 0.5,
+        "regularisation_weight_l3": 0.5,
+    },
+}
+"""
+architectures = {
     "mpnn_l1": {
         "regularisation_weight_l2": 0.0,
         "regularisation_weight_l3": 0.0,
@@ -50,6 +57,7 @@ architectures = {
         "regularisation_weight_l3": 0.5,
     },
 }
+"""
 test_flag = False
 ###################################################
 # No need to change anything below here
@@ -73,7 +81,7 @@ slurm_output_file_name = "slurm_l65_gpu_template_experiment"
 experiment_file_name = f"{experiments_folder}/experiments_pca.json"
 
 # Experiment counter
-experiment_id_counter = 0
+experiment_id_counter = 300
 # Iterate over experiments
 for architecture_name, architecture_params in architectures.items():
     print(architecture_params)

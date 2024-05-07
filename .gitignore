@@ -25,6 +25,7 @@ venv/
 
 # SLURM jobs files
 results/
+results_all/
 datasets/
 datasets_0/
 results_0/
