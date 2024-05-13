@@ -21,10 +21,18 @@ algorithms = [
     "quickselect",
 ]
 architectures = {
-    "mpnn_l1_l3_max": {
-        "regularisation_weight_l2": 0.5,
-        "regularisation_weight_l3": 0.5,
+    "mpnn_l1_l3": {
+        "regularisation_weight_l2": 1.0,
+        "regularisation_weight_l3": 0.0,
     },
+    "mpnn_l1_l3_max": {
+        "regularisation_weight_l2": 1.0,
+        "regularisation_weight_l3": 0.0,
+    },
+    "mpnn_l2_l3": {
+        "regularisation_weight_l2": 0.0,
+        "regularisation_weight_l3": 0.1,
+    }, 
 }
 """
 architectures = {
@@ -81,7 +89,8 @@ slurm_output_file_name = "slurm_l65_gpu_template_experiment"
 experiment_file_name = f"{experiments_folder}/experiments_pca.json"
 
 # Experiment counter
-experiment_id_counter = 300
+initial_experiment_id = 400
+experiment_id_counter = initial_experiment_id
 # Iterate over experiments
 for architecture_name, architecture_params in architectures.items():
     print(architecture_params)
@@ -125,7 +134,7 @@ results_path = Path(os.getcwd()) / 'results'
 if not results_path.exists():
     results_path.mkdir()
 
-for experiment_id in range(experiment_id_counter):
+for experiment_id in range(initial_experiment_id, experiment_id_counter):
     results_experiment_path = results_path / str(experiment_id)
     if not results_experiment_path.exists():
         results_experiment_path.mkdir()
@@ -136,13 +145,13 @@ datasets_path = Path(os.getcwd()) / 'datasets'
 if not datasets_path.exists():
     datasets_path.mkdir()
 
-for experiment_id in range(experiment_id_counter):
+for experiment_id in range(initial_experiment_id, experiment_id_counter):
     datasets_experiment_path = datasets_path / str(experiment_id)
     if not datasets_experiment_path.exists():
         datasets_experiment_path.mkdir()
 
 # Iterate over the experiments running them
-for experiment_id in range(experiment_id_counter):
+for experiment_id in range(initial_experiment_id, experiment_id_counter):
     print(f'Running experiment with ID: {experiment_id}')
     # Command to execute experiment
     call(["sbatch", f"{experiments_folder}/{slurm_output_file_name}_{experiment_id}"])

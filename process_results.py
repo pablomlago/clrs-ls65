@@ -98,7 +98,3 @@ for entry in os.scandir(directory_path):
             print(f"An error occurred while reading from {file_path}: {str(e)}")
 
 print(results)
-
-        
-
-exit()
