@@ -113,9 +113,9 @@ class TropicalLinear(hk.Module):
     w = hk.get_parameter("w", [input_size, output_size], dtype, init=w_init)
 
     inputs_expanded = jnp.expand_dims(inputs, axis=-1)
-    w_expanded = jnp.expand_dims(w, axis=(0,1))
+    w_expanded = jnp.expand_dims(w, axis=[i for i in range(len(inputs.shape[:-1]))])
 
-    out = jax.scipy.special.logsumexp(inputs_expanded  + w_expanded, axis=2) 
+    out = jax.scipy.special.logsumexp(inputs_expanded  + w_expanded, axis=len(inputs.shape)-1) 
 
     return out
 
@@ -1264,6 +1264,139 @@ class PGN_L3(Processor):
 
     return ret, ret, None, asynchrony_losses # pytype: disable=bad-return-type  # numpy-scalars
   
+class PGN_L3_Replication(Processor):
+  """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
+
+  def __init__(
+      self,
+      out_size: int,
+      mid_size: Optional[int] = None,
+      mid_act: Optional[_Fn] = None,
+      activation: Optional[_Fn] = None,
+      reduction: _Fn = jnp.max,
+      arg_reduction: _Fn = jnp.max,
+      msgs_mlp_sizes: Optional[List[int]] = None,
+      use_ln: bool = False,
+      use_triplets: bool = False,
+      nb_triplet_fts: int = 8,
+      gated: bool = False,
+      name: str = 'mpnn_l3_replication',
+      num_messages_sample: int = 2,
+      num_nodes_sample: int = 8,
+  ):
+    super().__init__(name=name)
+    if mid_size is None:
+      self.mid_size = out_size
+    else:
+      self.mid_size = mid_size
+    self.out_size = out_size
+    self.mid_act = mid_act
+    # Same as in Asynchronous Algorithmic Alignment with Cocycles
+    self.activation = activation
+    self.reduction = reduction
+    self.arg_reduction = arg_reduction
+    self._msgs_mlp_sizes = msgs_mlp_sizes
+    self.use_ln = use_ln
+    self.use_triplets = use_triplets
+    self.nb_triplet_fts = nb_triplet_fts
+    self.gated = gated
+    self.num_messages_sample = num_messages_sample
+    self.num_nodes_sample = num_nodes_sample
+
+  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
+      self,
+      node_fts: _Array,
+      edge_fts: _Array,
+      graph_fts: _Array,
+      adj_mat: _Array,
+      hidden: _Array,
+      node_args: _Array,
+      **unused_kwargs,
+  ) -> _Array:
+    """MPNN inference step."""
+
+    b, n, _ = node_fts.shape
+    assert edge_fts.shape[:-1] == (b, n, n)
+    assert graph_fts.shape[:-1] == (b,)
+    assert adj_mat.shape == (b, n, n)
+
+    m_1_prev = hk.Linear(self.mid_size)
+    m_2_prev = hk.Linear(self.mid_size)
+    m_e_prev = hk.Linear(self.mid_size)
+    m_g_prev = hk.Linear(self.mid_size)
+
+    m_1 = TropicalLinear(self.mid_size)
+    m_2 = TropicalLinear(self.mid_size)
+    m_e = TropicalLinear(self.mid_size)
+    m_g = TropicalLinear(self.mid_size)
+
+    ###############
+    ## The following code includes the operations needed to compute losses
+    ###############
+
+    # Definition of msg_generation_fn
+    def compute_messages(args_receivers, args_senders, node_fts_receivers, node_fts_senders, edge_fts, graph_fts):
+
+      z_1 = jnp.concatenate([node_fts_receivers, args_receivers], axis=-1)
+      z_2 = jnp.concatenate([node_fts_senders, args_senders], axis=-1)
+      msg_1_prev = m_1_prev(z_1)
+      msg_2_prev = m_2_prev(z_2)
+      msg_e_prev = m_e_prev(edge_fts)
+      msg_g_prev = m_g_prev(graph_fts)
+
+      msg_1 = m_1(msg_1_prev)
+      msg_2 = m_2(msg_2_prev)
+      msg_e = m_e(msg_e_prev)
+      msg_g = m_g(msg_g_prev)
+
+      # The message generator function is linear (psi)
+      msgs = (
+          jnp.expand_dims(msg_1, axis=1) + jnp.expand_dims(msg_2, axis=2) +
+          msg_e + jnp.expand_dims(msg_g, axis=(1, 2)))
+      
+      return msgs
+
+    # Definition of node_update_scan_fn
+    def compute_node_update_scan(hidden, msgs):
+      # The node update is the maximum
+      ret = jnp.maximum(hidden, msgs)
+      # The hidden state of the node is propagated within the carry, and it is also accumulated
+      # during hk.scan
+      return ret, ret
+    
+    ###############
+    ## End of operations to compute losses
+    ###############
+
+    # Compute messages
+    msgs = compute_messages(hidden, hidden, node_fts, node_fts, edge_fts, graph_fts)
+
+    # Call to code to compute losses
+    asynchrony_losses = compute_asynchrony_losses(
+      self.num_messages_sample, 
+      self.num_nodes_sample,
+      hidden, 
+      hidden, 
+      msgs, 
+      adj_mat, 
+      node_fts, 
+      edge_fts, 
+      graph_fts, 
+      self.reduction, 
+      self.arg_reduction, 
+      compute_node_update_scan, 
+      compute_node_update_scan, 
+      compute_messages
+    )
+
+    # Computes m_{i}^{(t)} as a reduction over f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)}), 
+    # e.g. m_{i}^{(t)}=max_{1 \leq j \leq n}f_{m}(z_{i}^{(t)}, z_{j}^{(t)}, e_{ij}^{(t)}, g^{(t)})
+    msgs = apply_msg_reduction(self.reduction, msgs, adj_mat)
+
+    ret, _ = compute_node_update_scan(hidden, msgs)
+
+    return ret, ret, None, asynchrony_losses # pytype: disable=bad-return-type  # numpy-scalars
+  
 class PGN_L2_L3(Processor):
   """Pointer Graph Networks (Veličković et al., NeurIPS 2020)."""
 
@@ -1654,6 +1787,14 @@ class MPNN_L2(PGN_L2):
     return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden, node_args)
   
 class MPNN_L3(PGN_L3):
+  """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
+
+  def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
+               adj_mat: _Array, hidden: _Array, node_args: _Array, **unused_kwargs) -> _Array:
+    adj_mat = jnp.ones_like(adj_mat)
+    return super().__call__(node_fts, edge_fts, graph_fts, adj_mat, hidden, node_args)
+  
+class MPNN_L3_Replication(PGN_L3_Replication):
   """Message-Passing Neural Network (Gilmer et al., ICML 2017)."""
 
   def __call__(self, node_fts: _Array, edge_fts: _Array, graph_fts: _Array,
@@ -2108,6 +2249,17 @@ def get_processor_factory(kind: str,
       )
     elif kind == 'mpnn_l3':
       processor = MPNN_L3(
+          out_size=out_size,
+          reduction=jnp.max,
+          arg_reduction=jnp.max,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+      )
+    elif kind == 'mpnn_l3_replication':
+      processor = MPNN_L3_Replication(
           out_size=out_size,
           reduction=jnp.max,
           arg_reduction=jnp.max,
