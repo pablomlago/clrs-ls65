@@ -61,7 +61,10 @@ for entry in os.scandir(directory_path):
         filtered_command_parts = [part for part in command_parts if not part.startswith('>')]
         # Parsing the command-line arguments.
         options_dict = parse_command_options(filtered_command_parts)
-        print(options_dict)
+        #print(options_dict)
+
+        if options_dict["algorithms"] == "quickselect" and options_dict["processor_type"] == "mpnn_l3":
+            print(file_path, options_dict["algorithms"], options_dict["processor_type"])
 
         algorithm = options_dict["algorithms"]
         processor = options_dict["processor_type"]
@@ -97,4 +100,4 @@ for entry in os.scandir(directory_path):
         except Exception as e:
             print(f"An error occurred while reading from {file_path}: {str(e)}")
 
-print(results)
+#print(results)

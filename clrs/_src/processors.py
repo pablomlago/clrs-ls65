@@ -2325,6 +2325,20 @@ def get_processor_factory(kind: str,
           num_messages_sample=num_messages_sample,
           num_nodes_sample=num_nodes_sample,
       )
+    elif kind == 'mpnn_l1_l3_max_sum':
+      processor = MPNN_L1_L3(
+          out_size=out_size,
+          activation=jax.nn.relu,
+          reduction=jnp.max,
+          arg_reduction=jnp.sum,
+          msgs_mlp_sizes=None,
+          use_ln=False,
+          use_triplets=False,
+          nb_triplet_fts=nb_triplet_fts,
+          gated=False,
+          num_messages_sample=num_messages_sample,
+          num_nodes_sample=num_nodes_sample,
+      )
     else:
       raise ValueError('Unexpected processor kind ' + kind)
 

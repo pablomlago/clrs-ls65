@@ -111,7 +111,7 @@ flags.DEFINE_enum('processor_type', 'triplet_mpnn',
                    'gpgn', 'gpgn_mask', 'gmpnn',
                    'triplet_gpgn', 'triplet_gpgn_mask', 'triplet_gmpnn', 
                    'mpnn_l1', 'mpnn_l1_max', 'mpnn_l2', 'mpnn_l3', 'mpnn_l3_replication',
-                   'mpnn_l2_l3', 'mpnn_l2_l3_max', 'mpnn_l1_l3', 'mpnn_l1_l3_max'],
+                   'mpnn_l2_l3', 'mpnn_l2_l3_max', 'mpnn_l1_l3', 'mpnn_l1_l3_max', 'mpnn_l1_l3_max_sum'],
                   'Processor type to use as the network P.')
 
 flags.DEFINE_string('checkpoint_path', '/tmp/CLRS30_v1.0.0',

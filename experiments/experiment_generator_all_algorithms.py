@@ -154,6 +154,6 @@ for experiment_id in range(initial_experiment_id, experiment_id_counter):
 for experiment_id in range(initial_experiment_id, experiment_id_counter):
     print(f'Running experiment with ID: {experiment_id}')
     # Command to execute experiment
-    call(["sbatch", f"{experiments_folder}/{slurm_output_file_name}_{experiment_id}"])
+    #call(["sbatch", f"{experiments_folder}/{slurm_output_file_name}_{experiment_id}"])
 
 
