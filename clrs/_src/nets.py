@@ -37,6 +37,8 @@ import jax.numpy as jnp
 
 from lsr.noise_injection import inject_noise, load_noise_vectors, NoiseInjectionStrategy
 
+from clrs._src.global_config import latents_config, regularisation_config
+
 _Array = chex.Array
 _DataPoint = probing.DataPoint
 _Features = samplers.Features
@@ -157,7 +159,11 @@ class Net(hk.Module):
         force_mask = None
       for hint in hints:
         hint_data = jnp.asarray(hint.data)[i]
-        _, loc, typ = spec[hint.name]
+        try:
+            _, loc, typ = spec[hint.name]
+        except:
+            loc = _Location.EDGE
+            typ = _Type.POINTER
         if needs_noise:
           if (typ == _Type.POINTER and
               decoded_hint[hint.name].type_ == _Type.SOFT_POINTER):
@@ -396,6 +402,34 @@ class Net(hk.Module):
               loc, t, hidden_dim=self.hidden_dim,
               nb_dims=self.nb_dims[algo_idx][name],
               name=f'algo_{algo_idx}_{name}')
+          
+        # Hint reversal
+        if regularisation_config.use_hint_reversal:
+          if stage == _Stage.HINT and t == _Type.POINTER and self.encode_hints:
+            name += '_reversed'
+            loc = _Location.EDGE
+            # Build input encoders.
+            if name == specs.ALGO_IDX_INPUT_NAME:
+              if enc_algo_idx is None:
+                enc_algo_idx = [hk.Linear(self.hidden_dim,
+                                          name=f'{name}_enc_linear')]
+              enc[name] = enc_algo_idx
+            else:
+              enc[name] = encoders.construct_encoders(
+                  stage, loc, t, hidden_dim=self.hidden_dim,
+                  init=self.encoder_init,
+                  name=f'algo_{algo_idx}_{name}')
+
+          if stage == _Stage.HINT and t == _Type.POINTER and self.decode_hints:
+            if "_reversed" not in name:
+              name += '_reversed'
+            loc = _Location.EDGE
+            # Build output decoders.
+            dec[name] = decoders.construct_decoders(
+                loc, t, hidden_dim=self.hidden_dim,
+                nb_dims=self.nb_dims[algo_idx][name],
+                name=f'algo_{algo_idx}_{name}')
+            
       encoders_.append(enc)
       decoders_.append(dec)
 

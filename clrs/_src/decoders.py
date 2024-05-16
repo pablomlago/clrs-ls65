@@ -152,7 +152,11 @@ def postprocess(spec: _Spec, preds: Dict[str, _Array],
   """
   result = {}
   for name in preds.keys():
-    _, loc, t = spec[name]
+    try:
+        _, loc, t = spec[name]
+    except:
+        loc = _Location.EDGE
+        t = _Type.POINTER
     new_t = t
     data = preds[name]
     if t == _Type.SCALAR:
@@ -212,25 +216,38 @@ def decode_fts(
 
   for name in decoders:
     decoder = decoders[name]
-    stage, loc, t = spec[name]
 
-    if loc == _Location.NODE:
-      preds = _decode_node_fts(decoder, t, h_t, edge_fts, adj_mat,
-                               inf_bias, repred)
-    elif loc == _Location.EDGE:
-      preds = _decode_edge_fts(decoder, t, h_t, edge_fts, adj_mat,
-                               inf_bias_edge)
-    elif loc == _Location.GRAPH:
-      preds = _decode_graph_fts(decoder, t, h_t, graph_fts)
-    else:
-      raise ValueError("Invalid output type")
+    if name in spec:
+      stage, loc, t = spec[name]
 
-    if stage == _Stage.OUTPUT:
-      output_preds[name] = preds
-    elif stage == _Stage.HINT:
-      hint_preds[name] = preds
+      if loc == _Location.NODE:
+        preds = _decode_node_fts(decoder, t, h_t, edge_fts, adj_mat,
+                                inf_bias, repred)
+      elif loc == _Location.EDGE:
+        preds = _decode_edge_fts(decoder, t, h_t, edge_fts, adj_mat,
+                                inf_bias_edge)
+      elif loc == _Location.GRAPH:
+        preds = _decode_graph_fts(decoder, t, h_t, graph_fts)
+      else:
+        raise ValueError("Invalid output type")
+
+      if stage == _Stage.OUTPUT:
+        output_preds[name] = preds
+      elif stage == _Stage.HINT:
+        hint_preds[name] = preds
+      else:
+        raise ValueError(f"Found unexpected decoder {name}")
+      
+    elif "_reversed" in name:
+        stage = _Stage.HINT
+        loc = _Location.EDGE
+        t = _Type.POINTER
+
+        preds = _decode_edge_fts(decoder, t, h_t, edge_fts, adj_mat,
+                                   inf_bias_edge)
+        hint_preds[name] = preds
     else:
-      raise ValueError(f"Found unexpected decoder {name}")
+        continue        
 
   return hint_preds, output_preds
 

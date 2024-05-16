@@ -346,6 +346,8 @@ class BaselineModel(model.Model):
         return_all_features=return_all_features)
     
     # Calculate mse_loss on validation
+    
+    """
     jax.debug.print(
       ("[DEBUG-VAL] L2_loss: {l2_loss}, L2_regularisation_weight: {l2_reg_weight}, "
         "L3_loss: {l3_loss}, L3_regularisation_weight: {l3_reg_weight}, "
@@ -358,6 +360,7 @@ class BaselineModel(model.Model):
       l3_cocycle_loss=asynchrony_information.l3_cocycle_loss,
       l3_multimorphism_loss=asynchrony_information.l3_multimorphism_loss,
     )
+    """
 
     outs = decoders.postprocess(self._spec[algorithm_index],
                                 outs,
@@ -461,6 +464,8 @@ class BaselineModel(model.Model):
     regularisation_loss_l2 = self.regularisation_weight_l2 * asynchrony_information.l2_loss
     regularisation_loss_l3 = self.regularisation_weight_l3 * (asynchrony_information.l3_cocycle_loss + asynchrony_information.l3_multimorphism_loss)/2.
     # TODO: Remove once validated, as it impacts performance
+    
+    """
     jax.debug.print(
       ("[DEBUG] Quality_loss: {quality_loss}, L2_loss: {l2_loss}, L2_regularisation_weight: {l2_reg_weight}, "
         "L3_loss: {l3_loss}, L3_regularisation_weight: {l3_reg_weight}, "
@@ -474,6 +479,7 @@ class BaselineModel(model.Model):
       l3_cocycle_loss=asynchrony_information.l3_cocycle_loss,
       l3_multimorphism_loss=asynchrony_information.l3_multimorphism_loss,
     )
+    """
 
     return total_loss + regularisation_loss_l2 + regularisation_loss_l3
 

@@ -29,6 +29,7 @@ from clrs._src import specs
 import jax
 import numpy as np
 
+from clrs._src.global_config import regularisation_config
 
 _Array = np.ndarray
 _DataPoint = probing.DataPoint
@@ -187,6 +188,10 @@ class Sampler(abc.ABC):
       hints = self._hints
       lengths = self._lengths
       outputs = self._outputs
+
+    if regularisation_config.use_hint_reversal:
+      reversed_hints = regularisation_config.reverse_pointers(hints)
+      hints.extend(reversed_hints)
 
     return Feedback(Features(inputs, hints, lengths), outputs)
 
